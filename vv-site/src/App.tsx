@@ -3,13 +3,12 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
 
-// Types
-type Summary = {
-  total: number;
-  pass: number;
-  fail: number;
+interface Summary {
+  C: { total: number; pass: number; fail: number };
+  CPP: { total: number; pass: number; fail: number };
+  F90: { total: number; pass: number; fail: number };
   failures: { name: string; reason: string }[];
-};
+}
 
 function App() {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -23,24 +22,30 @@ function App() {
     const data = JSON.parse(fileText);
     const runs = data.runs;
 
-    let total = 0;
-    let pass = 0;
-    let fail = 0;
-    const failures: { name: string; reason: string }[] = [];
+    const summaryCounts: Summary = {
+      C: { total: 0, pass: 0, fail: 0 },
+      CPP: { total: 0, pass: 0, fail: 0 },
+      F90: { total: 0, pass: 0, fail: 0 },
+      failures: [],
+    };
 
     for (const test in runs) {
-      total++;
-      const result = runs[test][0]?.runtime?.result;
+      const ext = test.split('.').pop();
+      const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
+      if (!lang) continue;
+
+      summaryCounts[lang].total++;
+      const result = runs[test][0]?.compile?.result;
       if (result === 0) {
-        pass++;
+        summaryCounts[lang].pass++;
       } else {
-        fail++;
-        const reason = runs[test][0]?.runtime?.stderr?.split('\n')[0] || 'Unknown error';
-        failures.push({ name: test, reason });
+        summaryCounts[lang].fail++;
+        const reason = runs[test][0]?.compile?.stderr?.split('\n')[0] || 'Unknown error';
+        summaryCounts.failures.push({ name: test, reason });
       }
     }
 
-    setSummary({ total, pass, fail, failures });
+    setSummary(summaryCounts);
   }
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
@@ -52,41 +57,11 @@ function App() {
     }
   }
 
-  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDragging(false);
-    const files = Array.from(event.dataTransfer.files).filter(file => file.name.endsWith('.json'));
-    if (files.length === 2) {
-      setComparisonFiles(files);
-    }
-  }
-
-  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    setIsDragging(true);
-  }
-
-  function handleDragLeave() {
-    setIsDragging(false);
-  }
-
-  function handleClickDropZone() {
-    fileInputRef.current?.click();
-  }
-
-  function handleFileDialogChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files;
-    if (files && files.length === 2) {
-      setComparisonFiles([files[0], files[1]]);
-    }
-  }
-
   function clearFiles() {
     setComparisonFiles([]);
     setComparisonData([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    document.querySelectorAll("input[type='file']").forEach((input) => ((input as HTMLInputElement).value = ''));
   }
 
   function generateComparisonGraph() {
@@ -113,7 +88,7 @@ function App() {
           if (!lang) continue;
 
           summaryCounts[lang].total++;
-          const passed = runs[test][0]?.runtime?.result === 0;
+          const passed = runs[test][0]?.compile?.result === 0;
           if (passed) summaryCounts[lang].pass++;
           else summaryCounts[lang].fail++;
         }
@@ -139,20 +114,31 @@ function App() {
 
       <div className="max-w-2xl mx-auto mb-10 bg-white shadow-md rounded-lg p-6 border border-blue-200">
         <h2 className="text-2xl font-semibold text-blue-700 mb-2">Upload Single Version Results</h2>
-        <p className="text-gray-600 mb-4">Upload a single JSON file to generate test results for one compiler version.</p>
-        <input
-          type="file"
-          accept=".json"
-          onChange={handleFileUpload}
-          className="block mb-6"
-        />
+        <p className="text-gray-600 mb-4 text-center">Upload a single JSON file to generate test results for one compiler version.</p>
+        <div className="flex flex-col items-center">
+          <input
+            type="file"
+            accept=".json"
+            onChange={handleFileUpload}
+            className="mb-2"
+            ref={fileInputRef}
+          />
+        </div>
 
         {summary && (
-          <div className="bg-gray-50 border border-gray-200 rounded p-4">
+          <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
             <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
-            <p>Total Tests: {summary.total}</p>
-            <p>Passing: {summary.pass}</p>
-            <p>Failing: {summary.fail}</p>
+            <p>Total Tests: {summary.C.total + summary.CPP.total + summary.F90.total}</p>
+            <p>Passing: {summary.C.pass + summary.CPP.pass + summary.F90.pass}</p>
+            <p>Failing: {summary.C.fail + summary.CPP.fail + summary.F90.fail}</p>
+            <div className="mt-2">
+              <p className="font-semibold">Breakdown:</p>
+              <ul className="list-disc list-inside text-sm">
+                <li>C: {summary.C.pass}/{summary.C.total}</li>
+                <li>C++: {summary.CPP.pass}/{summary.CPP.total}</li>
+                <li>Fortran (F90): {summary.F90.pass}/{summary.F90.total}</li>
+              </ul>
+            </div>
             <button
               className="mt-4 text-blue-600 underline"
               onClick={() => setShowFailures(!showFailures)}
@@ -160,7 +146,7 @@ function App() {
               {showFailures ? 'Hide' : 'Show'} Failing Test Details
             </button>
             {showFailures && (
-              <ul className="mt-4 list-disc list-inside text-sm text-red-700">
+              <ul className="mt-4 list-disc list-inside text-sm text-red-700 max-h-96 overflow-y-auto">
                 {summary.failures.map((f, i) => (
                   <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
                 ))}
@@ -172,7 +158,7 @@ function App() {
 
       <div className="max-w-2xl mx-auto bg-white shadow-md rounded-lg p-6 border border-green-200">
         <h2 className="text-2xl font-semibold text-green-700 mb-2">Compare Two Versions</h2>
-        <p className="text-gray-600 mb-4">Select exactly two JSON files to compare the passing test results across compilers.</p>
+        <p className="text-gray-600 mb-4 text-center">Select exactly two JSON files to compare the passing test results across compilers.</p>
 
         <div className="flex gap-4 mb-4">
           <input
