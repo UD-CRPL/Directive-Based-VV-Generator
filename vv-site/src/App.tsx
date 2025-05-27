@@ -17,6 +17,7 @@ function App() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [showFailures, setShowFailures] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   function parseJSONResults(fileText: string) {
     const data = JSON.parse(fileText);
@@ -49,13 +50,15 @@ function App() {
   }
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => parseJSONResults(e.target?.result as string);
-      reader.readAsText(file);
-    }
+  const file = event.target.files?.[0];
+  if (file) {
+    setUploadedFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => parseJSONResults(e.target?.result as string);
+    reader.readAsText(file);
   }
+}
+
 
   function clearFiles() {
     setComparisonFiles([]);
@@ -113,51 +116,59 @@ function App() {
       <h1 className="text-4xl font-bold mb-8 text-center text-blue-800">OpenACC V&V Results Generator</h1>
 
       <div className="max-w-2xl mx-auto mb-10 bg-white shadow-md rounded-lg p-6 border border-blue-200">
-        <h2 className="text-2xl font-semibold text-blue-700 mb-2">Upload Single Version Results</h2>
-        <p className="text-gray-600 mb-4 text-center">Upload a single JSON file to generate test results for one compiler version.</p>
-        <div className="flex flex-col items-center">
-          <input
-            type="file"
-            accept=".json"
-            onChange={handleFileUpload}
-            className="mb-2"
-            ref={fileInputRef}
-          />
-        </div>
+  <h2 className="text-2xl font-semibold text-blue-700 mb-2 text-center">Upload Single Version Results</h2>
+  <p className="text-gray-600 mb-4 text-center">
+    Upload a single JSON file to generate test results for one compiler version.
+  </p>
+  <div className="flex flex-col items-center">
+    <input
+      type="file"
+      accept=".json"
+      onChange={handleFileUpload}
+      className="mb-2"
+    />
+    {uploadedFileName && <p className="text-sm text-green-500">{uploadedFileName} has been successfully uploaded</p>}
+  </div>
 
-        {summary && (
-          <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
-            <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
-            <p>Total Tests: {summary.C.total + summary.CPP.total + summary.F90.total}</p>
-            <p>Passing: {summary.C.pass + summary.CPP.pass + summary.F90.pass}</p>
-            <p>Failing: {summary.C.fail + summary.CPP.fail + summary.F90.fail}</p>
-            <div className="mt-2">
-              <p className="font-semibold">Breakdown:</p>
-              <ul className="list-disc list-inside text-sm">
-                <li>C: {summary.C.pass}/{summary.C.total}</li>
-                <li>C++: {summary.CPP.pass}/{summary.CPP.total}</li>
-                <li>Fortran (F90): {summary.F90.pass}/{summary.F90.total}</li>
-              </ul>
-            </div>
-            <button
-              className="mt-4 text-blue-600 underline"
-              onClick={() => setShowFailures(!showFailures)}
-            >
-              {showFailures ? 'Hide' : 'Show'} Failing Test Details
-            </button>
-            {showFailures && (
-              <ul className="mt-4 list-disc list-inside text-sm text-red-700 max-h-96 overflow-y-auto">
-                {summary.failures.map((f, i) => (
+  {summary && (
+    <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+      <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
+
+      {['C', 'CPP', 'F90'].map((lang) => (
+        <div key={lang} className="mb-4 border-b pb-2">
+          <p className="font-medium text-lg">{lang}</p>
+          <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
+          <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
+          <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
+
+
+          <details className="mt-2">
+            <summary className="cursor-pointer text-blue-600 hover:underline">
+              Show failing tests
+            </summary>
+            <ul className="list-disc list-inside text-sm text-red-700 mt-2 max-h-48 overflow-y-auto">
+              {summary.failures
+                .filter((f) => {
+                  const ext = f.name.split('.').pop();
+                  return (
+                    (lang === 'C' && ext === 'c') ||
+                    (lang === 'CPP' && ext === 'cpp') ||
+                    (lang === 'F90' && ext?.toLowerCase() === 'f90')
+                  );
+                })
+                .map((f, i) => (
                   <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
                 ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
+            </ul>
+          </details>
+        </div>
+      ))}
+    </div>
+  )}
+</div>
 
       <div className="max-w-2xl mx-auto bg-white shadow-md rounded-lg p-6 border border-green-200">
-        <h2 className="text-2xl font-semibold text-green-700 mb-2">Compare Two Versions</h2>
+        <h2 className="text-2xl font-semibold text-green-700 mb-2 text-center">Compare Two Versions</h2>
         <p className="text-gray-600 mb-4 text-center">Select exactly two JSON files to compare the passing test results across compilers.</p>
 
         <div className="flex gap-4 mb-4">
