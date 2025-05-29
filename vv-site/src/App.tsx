@@ -19,35 +19,45 @@ function App() {
   const [showFailures, setShowFailures] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
 
-  function parseJSONResults(fileText: string) {
-    const data = JSON.parse(fileText);
-    const runs = data.runs;
+function parseJSONResults(fileText: string) {
+  // Strip "var jsonResults = " if it exists
+  const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
+  const data = JSON.parse(sanitized);
+  const runs = data.runs;
 
-    const summaryCounts: Summary = {
-      C: { total: 0, pass: 0, fail: 0 },
-      CPP: { total: 0, pass: 0, fail: 0 },
-      F90: { total: 0, pass: 0, fail: 0 },
-      failures: [],
-    };
+  const summaryCounts: Summary = {
+    C: { total: 0, pass: 0, fail: 0 },
+    CPP: { total: 0, pass: 0, fail: 0 },
+    F90: { total: 0, pass: 0, fail: 0 },
+    failures: [],
+  };
 
-    for (const test in runs) {
-      const ext = test.split('.').pop();
-      const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
-      if (!lang) continue;
+  for (const test in runs) {
+    const ext = test.split('.').pop()?.toLowerCase();
+    const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+    if (!lang) continue;
 
-      summaryCounts[lang].total++;
-      const result = runs[test][0]?.compile?.result;
-      if (result === 0) {
-        summaryCounts[lang].pass++;
-      } else {
-        summaryCounts[lang].fail++;
-        const reason = runs[test][0]?.compile?.stderr?.split('\n')[0] || 'Unknown error';
-        summaryCounts.failures.push({ name: test, reason });
-      }
+    summaryCounts[lang].total++;
+
+    const compileResult = runs[test]?.[0]?.compile?.result;
+    const runResult = runs[test]?.[0]?.run?.result;
+
+    const passed = compileResult === 0 && runResult === 0;
+
+    if (passed) {
+      summaryCounts[lang].pass++;
+    } else {
+      summaryCounts[lang].fail++;
+      const reason = runs[test]?.[0]?.compile?.stderr?.split('\n')[0]
+                  || runs[test]?.[0]?.run?.stderr?.split('\n')[0]
+                  || 'Unknown error';
+      summaryCounts.failures.push({ name: test, reason });
     }
-
-    setSummary(summaryCounts);
   }
+
+  setSummary(summaryCounts);
+}
+
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
   const file = event.target.files?.[0];
@@ -67,49 +77,54 @@ function App() {
     document.querySelectorAll("input[type='file']").forEach((input) => ((input as HTMLInputElement).value = ''));
   }
 
-  function generateComparisonGraph() {
-    if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
+function generateComparisonGraph() {
+  if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
 
-    const readers = [new FileReader(), new FileReader()];
-    const summaries: any[] = [];
+  const readers = [new FileReader(), new FileReader()];
+  const summaries: any[] = [];
 
-    readers.forEach((reader, index) => {
-      reader.onload = (e) => {
-        const fileText = e.target?.result as string;
-        const data = JSON.parse(fileText);
-        const runs = data.runs;
+  readers.forEach((reader, index) => {
+    reader.onload = (e) => {
+      // Strip "var jsonResults = " if it exists
+      const sanitized = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
+      const data = JSON.parse(sanitized);
+      const runs = data.runs;
 
-        const summaryCounts = {
-          C: { total: 0, pass: 0, fail: 0 },
-          CPP: { total: 0, pass: 0, fail: 0 },
-          F90: { total: 0, pass: 0, fail: 0 },
-        };
-
-        for (const test in runs) {
-          const ext = test.split('.').pop();
-          const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
-          if (!lang) continue;
-
-          summaryCounts[lang].total++;
-          const passed = runs[test][0]?.compile?.result === 0;
-          if (passed) summaryCounts[lang].pass++;
-          else summaryCounts[lang].fail++;
-        }
-
-        summaries[index] = summaryCounts;
-
-        if (summaries.filter(Boolean).length === 2) {
-          const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
-            language: lang,
-            version1: summaries[0][lang].pass,
-            version2: summaries[1][lang].pass,
-          }));
-          setComparisonData(chartData);
-        }
+      const summaryCounts = {
+        C: { total: 0, pass: 0, fail: 0 },
+        CPP: { total: 0, pass: 0, fail: 0 },
+        F90: { total: 0, pass: 0, fail: 0 },
       };
-      reader.readAsText(comparisonFiles[index]);
-    });
-  }
+
+      for (const test in runs) {
+        const ext = test.split('.').pop()?.toLowerCase();
+        const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+        if (!lang) continue;
+
+        summaryCounts[lang].total++;
+
+        // Original logic: just count compile success as a pass
+        const compileResult = runs[test]?.[0]?.compile?.result;
+        const passed = compileResult === 0;
+
+        if (passed) summaryCounts[lang].pass++;
+        else summaryCounts[lang].fail++;
+      }
+
+      summaries[index] = summaryCounts;
+
+      if (summaries.filter(Boolean).length === 2) {
+        const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
+          language: lang,
+          version1: summaries[0][lang].pass,
+          version2: summaries[1][lang].pass,
+        }));
+        setComparisonData(chartData);
+      }
+    };
+    reader.readAsText(comparisonFiles[index]);
+  });
+}
 
   return (
     <div className="min-h-screen bg-gray-100 p-6">
