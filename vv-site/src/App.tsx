@@ -85,9 +85,9 @@ function generateComparisonGraph() {
 
   readers.forEach((reader, index) => {
     reader.onload = (e) => {
-      // Strip "var jsonResults = " if it exists
-      const sanitized = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
-      const data = JSON.parse(sanitized);
+      // ✅ Strip "var jsonResults = " if present
+      const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
+      const data = JSON.parse(fileText);
       const runs = data.runs;
 
       const summaryCounts = {
@@ -97,16 +97,12 @@ function generateComparisonGraph() {
       };
 
       for (const test in runs) {
-        const ext = test.split('.').pop()?.toLowerCase();
-        const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+        const ext = test.split('.').pop();
+        const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
         if (!lang) continue;
 
         summaryCounts[lang].total++;
-
-        // Original logic: just count compile success as a pass
-        const compileResult = runs[test]?.[0]?.compile?.result;
-        const passed = compileResult === 0;
-
+        const passed = runs[test][0]?.compile?.result === 0;
         if (passed) summaryCounts[lang].pass++;
         else summaryCounts[lang].fail++;
       }
