@@ -15,12 +15,11 @@ function App() {
   const [comparisonFiles, setComparisonFiles] = useState<File[]>([]);
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const [showFailures, setShowFailures] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState('');
 
   function parseJSONResults(fileText: string) {
-    const data = JSON.parse(fileText);
+    const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
+    const data = JSON.parse(sanitized);
     const runs = data.runs;
 
     const summaryCounts: Summary = {
@@ -30,19 +29,22 @@ function App() {
       failures: [],
     };
 
-    for (const test in runs) {
-      const ext = test.split('.').pop();
-      const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
+    for (const testName in runs) {
+      const ext = testName.split('.').pop()?.toLowerCase();
+      const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
       if (!lang) continue;
 
+      const testEntry = runs[testName][0];
+      const compileResult = testEntry?.compilation?.result;
+
       summaryCounts[lang].total++;
-      const result = runs[test][0]?.compile?.result;
-      if (result === 0) {
+
+      if (compileResult === 0) {
         summaryCounts[lang].pass++;
       } else {
         summaryCounts[lang].fail++;
-        const reason = runs[test][0]?.compile?.stderr?.split('\n')[0] || 'Unknown error';
-        summaryCounts.failures.push({ name: test, reason });
+        const reason = testEntry?.compilation?.stderr?.split('\n')[0] || 'Unknown compile error';
+        summaryCounts.failures.push({ name: testName, reason });
       }
     }
 
@@ -50,15 +52,14 @@ function App() {
   }
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
-  const file = event.target.files?.[0];
-  if (file) {
-    setUploadedFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => parseJSONResults(e.target?.result as string);
-    reader.readAsText(file);
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFileName(file.name);
+      const reader = new FileReader();
+      reader.onload = (e) => parseJSONResults(e.target?.result as string);
+      reader.readAsText(file);
+    }
   }
-}
-
 
   function clearFiles() {
     setComparisonFiles([]);
@@ -75,7 +76,7 @@ function App() {
 
     readers.forEach((reader, index) => {
       reader.onload = (e) => {
-        const fileText = e.target?.result as string;
+        const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
         const data = JSON.parse(fileText);
         const runs = data.runs;
 
@@ -86,12 +87,12 @@ function App() {
         };
 
         for (const test in runs) {
-          const ext = test.split('.').pop();
-          const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'F90' ? 'F90' : null;
+          const ext = test.split('.').pop()?.toLowerCase();
+          const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
           if (!lang) continue;
 
           summaryCounts[lang].total++;
-          const passed = runs[test][0]?.compile?.result === 0;
+          const passed = runs[test][0]?.compilation?.result === 0;
           if (passed) summaryCounts[lang].pass++;
           else summaryCounts[lang].fail++;
         }
@@ -116,56 +117,49 @@ function App() {
       <h1 className="text-4xl font-bold mb-8 text-center text-blue-800">OpenACC V&V Results Generator</h1>
 
       <div className="max-w-2xl mx-auto mb-10 bg-white shadow-md rounded-lg p-6 border border-blue-200">
-  <h2 className="text-2xl font-semibold text-blue-700 mb-2 text-center">Upload Single Version Results</h2>
-  <p className="text-gray-600 mb-4 text-center">
-    Upload a single JSON file to generate test results for one compiler version.
-  </p>
-  <div className="flex flex-col items-center">
-    <input
-      type="file"
-      accept=".json"
-      onChange={handleFileUpload}
-      className="mb-2"
-    />
-    {uploadedFileName && <p className="text-sm text-green-500">{uploadedFileName} has been successfully uploaded</p>}
-  </div>
+        <h2 className="text-2xl font-semibold text-blue-700 mb-2 text-center">Upload Single Version Results</h2>
+        <p className="text-gray-600 mb-4 text-center">Upload a single JSON file to generate test results for one compiler version.</p>
 
-  {summary && (
-    <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
-      <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
-
-      {['C', 'CPP', 'F90'].map((lang) => (
-        <div key={lang} className="mb-4 border-b pb-2">
-          <p className="font-medium text-lg">{lang}</p>
-          <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
-          <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
-          <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
-
-
-          <details className="mt-2">
-            <summary className="cursor-pointer text-blue-600 hover:underline">
-              Show failing tests
-            </summary>
-            <ul className="list-disc list-inside text-sm text-red-700 mt-2 max-h-48 overflow-y-auto">
-              {summary.failures
-                .filter((f) => {
-                  const ext = f.name.split('.').pop();
-                  return (
-                    (lang === 'C' && ext === 'c') ||
-                    (lang === 'CPP' && ext === 'cpp') ||
-                    (lang === 'F90' && ext?.toLowerCase() === 'f90')
-                  );
-                })
-                .map((f, i) => (
-                  <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
-                ))}
-            </ul>
-          </details>
+        <div className="flex flex-col items-center">
+          <input type="file" accept=".json" onChange={handleFileUpload} className="mb-2" />
+          {uploadedFileName && <p className="text-sm text-green-500">{uploadedFileName} has been successfully uploaded</p>}
         </div>
-      ))}
-    </div>
-  )}
-</div>
+
+        {summary && (
+          <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
+            <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
+
+            {['C', 'CPP', 'F90'].map((lang) => (
+              <div key={lang} className="mb-4 border-b pb-2">
+                <p className="font-medium text-lg">{lang}</p>
+                <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
+                <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
+                <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
+
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-blue-600 hover:underline">
+                    Show failing tests
+                  </summary>
+                  <ul className="list-disc list-inside text-sm text-red-700 mt-2 max-h-48 overflow-y-auto">
+                    {summary.failures
+                      .filter((f) => {
+                        const ext = f.name.split('.').pop();
+                        return (
+                          (lang === 'C' && ext === 'c') ||
+                          (lang === 'CPP' && ext === 'cpp') ||
+                          (lang === 'F90' && ext?.toLowerCase() === 'f90')
+                        );
+                      })
+                      .map((f, i) => (
+                        <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
+                      ))}
+                  </ul>
+                </details>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="max-w-2xl mx-auto bg-white shadow-md rounded-lg p-6 border border-green-200">
         <h2 className="text-2xl font-semibold text-green-700 mb-2 text-center">Compare Two Versions</h2>
@@ -215,7 +209,7 @@ function App() {
         {comparisonData.length > 0 && (
           <div className="h-96 mt-6 bg-gray-50 p-4 rounded border">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={comparisonData}>
+              <BarChart data={comparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <XAxis dataKey="language" />
                 <YAxis allowDecimals={false} />
                 <Tooltip />
