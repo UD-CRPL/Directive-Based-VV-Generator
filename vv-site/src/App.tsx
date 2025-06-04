@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import DetailsPage from './DetailsPage';
 
 interface Summary {
   C: { total: number; pass: number; fail: number };
@@ -10,12 +12,13 @@ interface Summary {
   failures: { name: string; reason: string }[];
 }
 
-function App() {
+function HomePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [comparisonFiles, setComparisonFiles] = useState<File[]>([]);
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const navigate = useNavigate();
 
   function parseJSONResults(fileText: string) {
     const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
@@ -157,6 +160,25 @@ function App() {
                 </details>
               </div>
             ))}
+
+            <button
+              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+              onClick={() => {
+                const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
+                const file = input?.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  const rawJson = e.target?.result as string;
+                  navigate('/details', { state: { rawJson } });
+                };
+                reader.readAsText(file);
+              }}
+            >
+              View Details
+            </button>
+            <p className="text-sm text-gray-600 mt-1">Click to see detailed test breakdowns and download Excel summaries.</p>
           </div>
         )}
       </div>
@@ -225,4 +247,11 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<HomePage />} />
+      <Route path="/details" element={<DetailsPage />} />
+    </Routes>
+  );
+}
