@@ -163,7 +163,18 @@ function HomePage() {
 
             <button
               className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-              onClick={() => navigate('/details')}
+              onClick={() => {
+                const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
+                const file = input?.files?.[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  const rawJson = e.target?.result as string;
+                  navigate('/details', { state: { rawJson } });
+                };
+                reader.readAsText(file);
+              }}
             >
               View Details
             </button>

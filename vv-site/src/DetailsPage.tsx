@@ -17,8 +17,8 @@ const DetailsPage: React.FC = () => {
   const [filter, setFilter] = useState<'all' | 'pass' | 'fail'>('all');
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     all: false,
-    compiler: false,
-    runtime: false
+    compiler: true,
+    runtime: true
   });
 
   useEffect(() => {
@@ -39,10 +39,10 @@ const DetailsPage: React.FC = () => {
       else if (ext === 'cpp') language = 'CPP';
       else if (ext === 'f90') language = 'F90';
 
-      const compilerResult = run?.compilation?.result;
+      const compilerResult = run?.compilation?.result ?? -1;
       const compilerReason = compilerResult !== 0 ? run?.compilation?.stderr?.split('\n')[0] || 'Unknown compile error' : '';
 
-      const runtimeResult = run?.execution?.result;
+      const runtimeResult = run?.execution?.result ?? -1;
       const runtimeReason = runtimeResult !== 0 ? run?.execution?.stderr?.split('\n')[0] || 'Unknown runtime error' : '';
 
       parsedFailures.push({
