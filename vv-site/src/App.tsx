@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -18,6 +18,7 @@ function HomePage() {
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
 
   function parseJSONResults(fileText: string) {
@@ -116,34 +117,43 @@ function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-4xl font-bold mb-8 text-center text-blue-800">OpenACC V&V Results Generator</h1>
+    <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
+      <div className="flex justify-end mb-6">
+        <button
+          onClick={() => setDarkMode(prev => !prev)}
+          className="px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-600"
+        >
+          Toggle {darkMode ? 'Light' : 'Dark'} Mode
+        </button>
+      </div>
 
-      <div className="max-w-2xl mx-auto mb-10 bg-white shadow-md rounded-lg p-6 border border-blue-200">
-        <h2 className="text-2xl font-semibold text-blue-700 mb-2 text-center">Upload Single Version Results</h2>
-        <p className="text-gray-600 mb-4 text-center">Upload a single JSON file to generate test results for one compiler version.</p>
+      <h1 className="text-4xl font-extrabold text-center mb-10 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400">
+        OpenACC V&V Results Generator
+      </h1>
+
+      <div className={`max-w-3xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+        <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Single Version Results</h2>
+        <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-300">Upload a single JSON file to generate summary statistics and access detailed results.</p>
 
         <div className="flex flex-col items-center">
-          <input type="file" accept=".json" onChange={handleFileUpload} className="mb-2" />
-          {uploadedFileName && <p className="text-sm text-green-500">{uploadedFileName} has been successfully uploaded</p>}
+          <input type="file" accept=".json" onChange={handleFileUpload} className="mb-3" />
+          {uploadedFileName && <p className="text-green-500 text-sm">{uploadedFileName} has been uploaded</p>}
         </div>
 
         {summary && (
-          <div className="bg-gray-50 border border-gray-200 rounded p-4 mt-4">
-            <h3 className="text-xl font-semibold mb-4">Test Summary</h3>
-
+          <div className={`mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
+            <h3 className="text-xl font-semibold mb-4 text-center">Test Summary</h3>
             {['C', 'CPP', 'F90'].map((lang) => (
               <div key={lang} className="mb-4 border-b pb-2">
-                <p className="font-medium text-lg">{lang}</p>
+                <p className="text-lg font-medium">{lang}</p>
                 <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
                 <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
                 <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
-
                 <details className="mt-2">
-                  <summary className="cursor-pointer text-blue-600 hover:underline">
+                  <summary className="cursor-pointer text-blue-500 dark:text-blue-300 hover:underline">
                     Show failing tests
                   </summary>
-                  <ul className="list-disc list-inside text-sm text-red-700 mt-2 max-h-48 overflow-y-auto">
+                  <ul className="list-disc pl-5 text-sm text-red-600 dark:text-red-400 mt-2 max-h-48 overflow-y-auto">
                     {summary.failures
                       .filter((f) => {
                         const ext = f.name.split('.').pop();
@@ -161,51 +171,44 @@ function HomePage() {
               </div>
             ))}
 
-            <button
-              className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-              onClick={() => {
-                const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
-                const file = input?.files?.[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                  const rawJson = e.target?.result as string;
-                  navigate('/details', { state: { rawJson } });
-                };
-                reader.readAsText(file);
-              }}
-            >
-              View Details
-            </button>
-            <p className="text-sm text-gray-600 mt-1">Click to see detailed test breakdowns and download Excel summaries.</p>
+            <div className="flex flex-col items-center mt-4">
+              <button
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded shadow"
+                onClick={() => {
+                  const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
+                  const file = input?.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const rawJson = e.target?.result as string;
+                    navigate('/details', { state: { rawJson } });
+                  };
+                  reader.readAsText(file);
+                }}
+              >
+                View Details
+              </button>
+              <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">Click to see detailed breakdown and generate Excel export</p>
+            </div>
           </div>
         )}
       </div>
 
-      <div className="max-w-2xl mx-auto bg-white shadow-md rounded-lg p-6 border border-green-200">
-        <h2 className="text-2xl font-semibold text-green-700 mb-2 text-center">Compare Two Versions</h2>
-        <p className="text-gray-600 mb-4 text-center">Select exactly two JSON files to compare the passing test results across compilers.</p>
+      <div className={`max-w-3xl mx-auto border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+        <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-300 mb-2">Compare Two Versions</h2>
+        <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-300">Upload two JSON files to compare the number of passing tests.</p>
 
         <div className="flex gap-4 mb-4">
-          <input
-            type="file"
-            accept=".json"
-            onChange={(e) => setComparisonFiles(prev => [e.target.files?.[0]!, prev[1]])}
-            className="flex-1 border border-green-400 p-2 rounded"
-          />
-          <input
-            type="file"
-            accept=".json"
-            onChange={(e) => setComparisonFiles(prev => [prev[0], e.target.files?.[0]!])}
-            className="flex-1 border border-green-400 p-2 rounded"
-          />
+          <input type="file" accept=".json" onChange={(e) => setComparisonFiles(prev => [e.target.files?.[0]!, prev[1]])}
+            className={`flex-1 p-2 rounded ${darkMode ? 'bg-gray-800 text-white border border-green-400' : 'bg-white text-black border border-green-600'}`} />
+          <input type="file" accept=".json" onChange={(e) => setComparisonFiles(prev => [prev[0], e.target.files?.[0]!])}
+            className={`flex-1 p-2 rounded ${darkMode ? 'bg-gray-800 text-white border border-green-400' : 'bg-white text-black border border-green-600'}`} />
         </div>
 
         {comparisonFiles.filter(Boolean).length === 2 && (
           <div className="text-center mb-4">
-            <p className="text-green-700 text-sm mb-2">✅ Both files ready:</p>
-            <ul className="text-sm text-gray-700 list-disc pl-5 text-left">
+            <p className="text-green-600 dark:text-green-300 text-sm mb-2">✅ Both files ready:</p>
+            <ul className="text-sm list-disc text-left pl-5 text-gray-800 dark:text-gray-200">
               {comparisonFiles.map((file, i) => (
                 file && <li key={i}>{file.name}</li>
               ))}
@@ -215,13 +218,13 @@ function HomePage() {
 
         <div className="flex justify-center gap-4">
           <button
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
             onClick={generateComparisonGraph}
           >
             Generate Graph
           </button>
           <button
-            className="bg-gray-300 text-black px-4 py-2 rounded hover:bg-gray-400"
+            className="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded shadow"
             onClick={clearFiles}
           >
             Clear Files
@@ -229,7 +232,7 @@ function HomePage() {
         </div>
 
         {comparisonData.length > 0 && (
-          <div className="h-96 mt-6 bg-gray-50 p-4 rounded border">
+          <div className={`h-96 mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <XAxis dataKey="language" />
