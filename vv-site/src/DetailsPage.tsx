@@ -15,6 +15,7 @@ const DetailsPage: React.FC = () => {
   const navigate = useNavigate();
   const [failures, setFailures] = useState<FailureDetail[]>([]);
   const [filter, setFilter] = useState<'all' | 'pass' | 'fail'>('all');
+  const [languageFilter, setLanguageFilter] = useState<'all' | 'C' | 'CPP' | 'F90'>('all');
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     all: false,
     compiler: true,
@@ -88,13 +89,15 @@ const DetailsPage: React.FC = () => {
 
   const filteredData = failures.filter((entry) => {
     const runtimeNumeric = typeof entry.runtimeResult === 'number' ? entry.runtimeResult : -1;
-    if (filter === 'fail') return entry.compilerResult !== 0 || runtimeNumeric !== 0;
-    if (filter === 'pass') return entry.compilerResult === 0 && runtimeNumeric === 0;
-    return true;
+    const filterPassFail = filter === 'fail' ? (entry.compilerResult !== 0 || runtimeNumeric !== 0)
+                         : filter === 'pass' ? (entry.compilerResult === 0 && runtimeNumeric === 0)
+                         : true;
+    const filterLang = languageFilter === 'all' || entry.language === languageFilter;
+    return filterPassFail && filterLang;
   });
 
-  const compilerFails = failures.filter(f => f.compilerResult !== 0);
-  const runtimeFails = failures.filter(f => {
+  const compilerFails = filteredData.filter(f => f.compilerResult !== 0);
+  const runtimeFails = filteredData.filter(f => {
     const result = f.runtimeResult;
     return (
       (typeof result === 'number' && result !== 0) ||
@@ -106,7 +109,7 @@ const DetailsPage: React.FC = () => {
     <div className="mt-8">
       <button
         onClick={() => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))}
-        className="text-left w-full text-2xl font-bold mb-2 focus:outline-none bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white px-5 py-3 rounded-lg shadow hover:opacity-90 transition duration-300"
+        className="text-left w-full text-2xl font-bold mb-2 focus:outline-none bg-gradient-to-r from-blue-300 via-purple-400 to-indigo-400 text-white px-5 py-3 rounded-lg shadow hover:opacity-90 transition duration-300"
       >
         {expandedSections[key] ? '▼' : '▶'} {title}
       </button>
@@ -160,7 +163,7 @@ const DetailsPage: React.FC = () => {
   );
 
   return (
-    <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-white text-black'} min-h-screen p-8`}>
+    <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 text-white' : 'bg-white text-black'} min-h-screen p-8`}>
       <div className="flex justify-between items-center mb-6">
         <button onClick={() => navigate(-1)} className="text-blue-600 dark:text-blue-400 hover:underline">
           ← Back to Summary
@@ -174,18 +177,34 @@ const DetailsPage: React.FC = () => {
         Detailed Test Results
       </h1>
 
-      <div className="text-center mb-6">
-        <label htmlFor="filter" className="mr-3 font-semi-bold text-lg">Filter:</label>
-        <select
-          id="filter"
-          className="border p-2 rounded bg-gray-100 dark:bg-gray-900 dark:text-white hover:border-blue-400"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as any)}
-        >
-          <option value="all">All Tests</option>
-          <option value="pass">Only Passing</option>
-          <option value="fail">Only Failing</option>
-        </select>
+      <div className="flex flex-col md:flex-row items-center justify-center gap-4 mb-6">
+        <div>
+          <label htmlFor="filter" className="mr-2 font-medium">Result Filter:</label>
+          <select
+            id="filter"
+            className={`border p-2 rounded ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'} hover:border-blue-400`}
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as any)}
+          >
+            <option value="all">All Tests</option>
+            <option value="pass">Only Passing</option>
+            <option value="fail">Only Failing</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="languageFilter" className="mr-2 font-medium">Language:</label>
+          <select
+            id="languageFilter"
+            className={`border p-2 rounded ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'} hover:border-blue-400`}
+            value={languageFilter}
+            onChange={(e) => setLanguageFilter(e.target.value as any)}
+          >
+            <option value="all">All</option>
+            <option value="C">C</option>
+            <option value="CPP">C++</option>
+            <option value="F90">Fortran</option>
+          </select>
+        </div>
       </div>
 
       {renderTable(filteredData, 'All Tests', 'all')}
