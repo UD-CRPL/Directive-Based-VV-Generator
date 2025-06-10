@@ -1,4 +1,4 @@
-import React, { useRef, useState} from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
@@ -12,13 +12,17 @@ interface Summary {
   failures: { name: string; reason: string }[];
 }
 
-function HomePage() {
+interface HomePageProps {
+  darkMode: boolean;
+  setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [comparisonFiles, setComparisonFiles] = useState<File[]>([]);
   const [comparisonData, setComparisonData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
-  const [darkMode, setDarkMode] = useState(false);
   const navigate = useNavigate();
 
   function parseJSONResults(fileText: string) {
@@ -251,10 +255,19 @@ function HomePage() {
 }
 
 export default function App() {
+  const [darkMode, setDarkMode] = useState(() => {
+    const stored = localStorage.getItem('darkMode');
+    return stored ? stored === 'true' : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('darkMode', String(darkMode));
+  }, [darkMode]);
+
   return (
     <Routes>
-      <Route path="/" element={<HomePage />} />
-      <Route path="/details" element={<DetailsPage />} />
+      <Route path="/" element={<HomePage darkMode={darkMode} setDarkMode={setDarkMode} />} />
+      <Route path="/details" element={<DetailsPage darkMode={darkMode} setDarkMode={setDarkMode} />} />
     </Routes>
   );
 }

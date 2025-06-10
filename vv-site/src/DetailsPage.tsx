@@ -10,7 +10,12 @@ interface FailureDetail {
   language: string;
 }
 
-const DetailsPage: React.FC = () => {
+interface Props {
+  darkMode: boolean;
+  setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [failures, setFailures] = useState<FailureDetail[]>([]);
@@ -21,7 +26,6 @@ const DetailsPage: React.FC = () => {
     compiler: true,
     runtime: true
   });
-  const [darkMode, setDarkMode] = useState(false);
 
   function extractReason(output?: string, error?: string): string {
     const errLine = error?.split('\n').find(line => line.trim()) ?? '';
