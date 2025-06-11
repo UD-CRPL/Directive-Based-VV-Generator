@@ -1,5 +1,8 @@
+// DetailsPage.tsx
+
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { getCompilerStatus, getRuntimeStatus } from './errorParser';
 
 interface FailureDetail {
   name: string;
@@ -8,6 +11,10 @@ interface FailureDetail {
   runtimeResult: number | string;
   runtimeReason: string;
   language: string;
+  compilerStderr: string;
+  compilerStdout: string;
+  runtimeStderr: string;
+  runtimeOutput: string;
 }
 
 interface Props {
@@ -18,21 +25,17 @@ interface Props {
 const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
   const location = useLocation();
   const navigate = useNavigate();
+
   const [failures, setFailures] = useState<FailureDetail[]>([]);
   const [filter, setFilter] = useState<'all' | 'pass' | 'fail'>('all');
   const [languageFilter, setLanguageFilter] = useState<'all' | 'C' | 'CPP' | 'F90'>('all');
-  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
+  const [logModal, setLogModal] = useState<FailureDetail | null>(null);
+
+  const [expandedSections, setExpandedSections] = useState<Record<'all' | 'compiler' | 'runtime', boolean>>({
     all: false,
     compiler: true,
-    runtime: true
+    runtime: true,
   });
-
-  function extractReason(output?: string, error?: string): string {
-    const errLine = error?.split('\n').find(line => line.trim()) ?? '';
-    const outLine = output?.split('\n').find(line => line.trim()) ?? '';
-    if (errLine && outLine) return `${errLine} | ${outLine}`;
-    return errLine || outLine || 'Unknown error';
-  }
 
   useEffect(() => {
     const state = location.state as { rawJson: string };
@@ -48,43 +51,27 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
       const runArray = runs[testName];
       if (!Array.isArray(runArray) || runArray.length === 0) continue;
       const run = runArray[0];
+
       const ext = testName.split('.').pop()?.toLowerCase();
       let language = 'Other';
       if (ext === 'c') language = 'C';
       else if (ext === 'cpp') language = 'CPP';
       else if (ext === 'f90') language = 'F90';
 
-      const compilerResult = run?.compilation?.result ?? -1;
-      const compilerReason = compilerResult !== 0
-        ? extractReason(run?.compilation?.output, run?.compilation?.stderr)
-        : '';
-
-      let runtimeResult: number | string = 0;
-      let runtimeReason = 'Pass';
-
-      if (compilerResult === 0 && run.execution) {
-        const result = run.execution.result;
-        const stderr = run.execution.stderr;
-        const hasErrorOutput = stderr && stderr.trim().length > 0;
-
-        if (typeof result === 'number') {
-          runtimeResult = result;
-          runtimeReason = result !== 0
-            ? extractReason(run.execution.output, stderr)
-            : (hasErrorOutput ? extractReason(run.execution.output, stderr) : 'Pass');
-        } else if (hasErrorOutput) {
-          runtimeResult = 'Runtime Failure';
-          runtimeReason = extractReason(run.execution.output, stderr);
-        }
-      }
+      const compilerStatus = getCompilerStatus(run);
+      const runtimeStatus = getRuntimeStatus(run);
 
       parsedFailures.push({
         name: testName,
-        compilerResult,
-        compilerReason,
-        runtimeResult,
-        runtimeReason,
-        language
+        compilerResult: compilerStatus.result,
+        compilerReason: compilerStatus.reason,
+        runtimeResult: runtimeStatus.result,
+        runtimeReason: runtimeStatus.reason,
+        language,
+        compilerStderr: compilerStatus.stderr,
+        compilerStdout: compilerStatus.stdout,
+        runtimeStderr: runtimeStatus.stderr,
+        runtimeOutput: runtimeStatus.output
       });
     }
 
@@ -109,7 +96,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     );
   });
 
-  const renderTable = (data: FailureDetail[], title: string, key: string) => (
+  const renderTable = (data: FailureDetail[], title: string, key: 'all' | 'compiler' | 'runtime') => (
     <div className="mt-8">
       <button
         onClick={() => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))}
@@ -129,32 +116,39 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
                 <th className="p-3 border">Compiler Reason</th>
                 <th className="p-3 border">Runtime Result</th>
                 <th className="p-3 border">Runtime Reason</th>
+                <th className="p-3 border">Logs</th>
               </tr>
             </thead>
             <tbody>
               {data.map((f, i) => {
                 const isUnknown = f.runtimeResult === 'Unknown';
-                const isFail =
-                  (typeof f.runtimeResult === 'number' && f.runtimeResult > 0) ||
-                  (typeof f.runtimeResult === 'string' && !['pass', 'unknown'].includes(f.runtimeResult.toLowerCase()));
                 const isPass = typeof f.runtimeResult === 'number' && f.runtimeResult === 0;
                 const isCompilerPass = f.compilerResult === 0;
+
                 return (
                   <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
                     <td className="p-3 border text-center font-mono">{i + 1}</td>
-                    <td className="p-3 border font-semibold text-cyan-600 dark:text-cyan-400">{f.name}</td>
+                    <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
                     <td className="p-3 border text-center">{f.language}</td>
                     <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-300'}`}>{f.compilerReason}</td>
-                    <td className={`p-3 border text-center font-semi-bold ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isFail ? 'text-yellow-600 dark:text-yellow-400' : isPass ? 'text-green-600 dark:text-green-400' : 'text-black dark:text-white'
+                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
+                    <td className={`p-3 border text-center font-semibold ${
+                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
                     }`}>
                       {f.runtimeResult}
                     </td>
                     <td className={`p-3 border ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
                     }`}>
                       {f.runtimeReason}
+                    </td>
+                    <td className="p-3 border text-center">
+                      <button
+                        className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
+                        onClick={() => setLogModal(f)}
+                      >
+                        View Full Log
+                      </button>
                     </td>
                   </tr>
                 );
@@ -214,6 +208,32 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
       {renderTable(filteredData, 'All Tests', 'all')}
       {renderTable(compilerFails, 'Compiler Failures', 'compiler')}
       {renderTable(runtimeFails, 'Runtime Failures', 'runtime')}
+
+      {logModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-xl w-[90%] max-w-4xl max-h-[90%] overflow-y-auto">
+            <h2 className="text-2xl font-bold mb-2 text-indigo-600 dark:text-indigo-300">{logModal.name} – Full Log</h2>
+            <div className="text-sm font-mono whitespace-pre-wrap">
+              <h3 className="mt-4 font-bold text-blue-600 dark:text-blue-400">Compiler Stdout:</h3>
+              <pre className="mb-4">{logModal.compilerStdout || '(none)'}</pre>
+              <h3 className="mt-4 font-bold text-blue-600 dark:text-blue-400">Compiler Stderr:</h3>
+              <pre className="mb-4">{logModal.compilerStderr || '(none)'}</pre>
+              <h3 className="mt-4 font-bold text-green-600 dark:text-green-400">Runtime Output:</h3>
+              <pre className="mb-4">{logModal.runtimeOutput || '(none)'}</pre>
+              <h3 className="mt-4 font-bold text-red-600 dark:text-red-400">Runtime Stderr:</h3>
+              <pre>{logModal.runtimeStderr || '(none)'}</pre>
+            </div>
+            <div className="mt-6 text-right">
+              <button
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                onClick={() => setLogModal(null)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
