@@ -142,17 +142,17 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
                 return (
                   <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
                     <td className="p-3 border text-center font-mono">{i + 1}</td>
-                    <td className="p-3 border font-semibold text-cyan-600 dark:text-cyan-400">{f.name}</td>
+                    <td className="p-3 border font-bold text-blue-800 : text-blue-400">{f.name}</td>
                     <td className="p-3 border text-center">{f.language}</td>
                     <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-300'}`}>{f.compilerReason}</td>
+                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
                     <td className={`p-3 border text-center font-semi-bold ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isFail ? 'text-yellow-600 dark:text-yellow-400' : isPass ? 'text-green-600 dark:text-green-400' : 'text-black dark:text-white'
+                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isFail ? 'text-yellow-600 dark:text-yellow-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-black dark:text-white'
                     }`}>
                       {f.runtimeResult}
                     </td>
                     <td className={`p-3 border ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
                     }`}>
                       {f.runtimeReason}
                     </td>
