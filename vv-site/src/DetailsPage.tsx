@@ -50,13 +50,14 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     for (const testName in runs) {
       const runArray = runs[testName];
       if (!Array.isArray(runArray) || runArray.length === 0) continue;
-      const run = runArray[0];
 
-      const ext = testName.split('.').pop()?.toLowerCase();
-      let language = 'Other';
-      if (ext === 'c') language = 'C';
-      else if (ext === 'cpp') language = 'CPP';
-      else if (ext === 'f90') language = 'F90';
+      for (let i = 0; i < runArray.length; i++) {
+        const run = runArray[i];
+        const ext = testName.split('.').pop()?.toLowerCase();
+        let language = 'Other';
+        if (ext === 'c') language = 'C';
+        else if (ext === 'cpp') language = 'CPP';
+        else if (ext === 'f90') language = 'F90';
 
       const compilerStatus = getCompilerStatus(run);
       const runtimeStatus = getRuntimeStatus(run);
@@ -73,6 +74,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
         runtimeStderr: runtimeStatus.stderr,
         runtimeOutput: runtimeStatus.output
       });
+    }
     }
 
     setFailures(parsedFailures);
