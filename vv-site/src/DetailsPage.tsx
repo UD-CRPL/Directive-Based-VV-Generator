@@ -131,12 +131,10 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
                     <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
                     <td className="p-3 border text-center">{f.language}</td>
                     <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
+                    <td className={`p-3 border ${ f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
                     <td className={`p-3 border text-center font-semibold ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
-                    }`}>
-                      {f.runtimeResult}
-                    </td>
+                    isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
+                    }`}> {f.runtimeResult}</td>
                     <td className={`p-3 border ${
                       isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
                     }`}>
@@ -211,7 +209,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
 
       {logModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-xl w-[90%] max-w-4xl max-h-[90%] overflow-y-auto">
+          <div className="bg-gray-900 text-white p-6 rounded-lg shadow-xl w-[90%] max-w-4xl max-h-[90%] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-2 text-indigo-600 dark:text-indigo-300">{logModal.name} – Full Log</h2>
             <div className="text-sm font-mono whitespace-pre-wrap">
               <h3 className="mt-4 font-bold text-blue-600 dark:text-blue-400">Compiler Stdout:</h3>
