@@ -38,47 +38,76 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
   });
 
   useEffect(() => {
-    const state = location.state as { rawJson: string };
-    if (!state?.rawJson) return;
+  const state = location.state as { rawJson: string };
+  if (!state?.rawJson) return;
 
-    const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
-    const data = JSON.parse(jsonText);
-    const runs = data.runs;
+  const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
+  const data = JSON.parse(jsonText);
+  const runs = data.runs;
 
-    const parsedFailures: FailureDetail[] = [];
+  const parsedFailures: FailureDetail[] = [];
 
-    for (const testName in runs) {
-      const runArray = runs[testName];
-      if (!Array.isArray(runArray) || runArray.length === 0) continue;
+  for (const testName in runs) {
+    const runArray = runs[testName];
+    if (!Array.isArray(runArray) || runArray.length === 0) continue;
 
-      for (let i = 0; i < runArray.length; i++) {
-        const run = runArray[i];
-        const ext = testName.split('.').pop()?.toLowerCase();
-        let language = 'Other';
-        if (ext === 'c') language = 'C';
-        else if (ext === 'cpp') language = 'CPP';
-        else if (ext === 'f90') language = 'F90';
+    const ext = testName.split('.').pop()?.toLowerCase();
+    let language = 'Other';
+    if (ext === 'c') language = 'C';
+    else if (ext === 'cpp') language = 'CPP';
+    else if (ext === 'f90') language = 'F90';
 
+    let compilerWorst = 0;
+    let runtimeWorst: number | string = 0;
+
+    const compilerReasons: string[] = [];
+    const runtimeReasons: string[] = [];
+
+    let compilerStderr = '';
+    let compilerStdout = '';
+    let runtimeStderr = '';
+    let runtimeOutput = '';
+
+    for (const run of runArray) {
       const compilerStatus = getCompilerStatus(run);
       const runtimeStatus = getRuntimeStatus(run);
 
-      parsedFailures.push({
-        name: testName,
-        compilerResult: compilerStatus.result,
-        compilerReason: compilerStatus.reason,
-        runtimeResult: runtimeStatus.result,
-        runtimeReason: runtimeStatus.reason,
-        language,
-        compilerStderr: compilerStatus.stderr,
-        compilerStdout: compilerStatus.stdout,
-        runtimeStderr: runtimeStatus.stderr,
-        runtimeOutput: runtimeStatus.output
-      });
-    }
+      if (compilerStatus.result !== 0) {
+        compilerWorst = 1;
+        compilerReasons.push(compilerStatus.reason);
+        compilerStderr ||= compilerStatus.stderr;
+        compilerStdout ||= compilerStatus.stdout;
+      }
+
+      if (typeof runtimeStatus.result === 'number' && runtimeStatus.result !== 0) {
+        runtimeWorst = 1;
+        runtimeReasons.push(runtimeStatus.reason);
+        runtimeStderr ||= runtimeStatus.stderr;
+        runtimeOutput ||= runtimeStatus.output;
+      } else if (typeof runtimeStatus.result === 'string' && runtimeStatus.result.toLowerCase() !== 'pass') {
+        runtimeWorst = runtimeStatus.result;
+        runtimeReasons.push(runtimeStatus.reason);
+        runtimeStderr ||= runtimeStatus.stderr;
+        runtimeOutput ||= runtimeStatus.output;
+      }
     }
 
-    setFailures(parsedFailures);
-  }, [location.state]);
+    parsedFailures.push({
+      name: testName,
+      compilerResult: compilerWorst,
+      compilerReason: compilerReasons.length ? Array.from(new Set(compilerReasons)).join('; ') : 'Pass',
+      runtimeResult: runtimeWorst,
+      runtimeReason: runtimeReasons.length ? Array.from(new Set(runtimeReasons)).join('; ') : 'Pass',
+      language,
+      compilerStderr,
+      compilerStdout,
+      runtimeStderr,
+      runtimeOutput,
+    });
+  }
+
+  setFailures(parsedFailures);
+}, [location.state]);
 
   const filteredData = failures.filter((entry) => {
     const runtimeNumeric = typeof entry.runtimeResult === 'number' ? entry.runtimeResult : -1;
