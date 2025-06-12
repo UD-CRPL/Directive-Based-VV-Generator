@@ -78,13 +78,13 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
         compilerStderr ||= compilerStatus.stderr;
         compilerStdout ||= compilerStatus.stdout;
       }
-
-      if (typeof runtimeStatus.result === 'number' && runtimeStatus.result !== 0) {
+      
+      if (typeof runtimeStatus?.result === 'number' && runtimeStatus.result !== 0) {
         runtimeWorst = 1;
         runtimeReasons.push(runtimeStatus.reason);
         runtimeStderr ||= runtimeStatus.stderr;
         runtimeOutput ||= runtimeStatus.output;
-      } else if (typeof runtimeStatus.result === 'string' && runtimeStatus.result.toLowerCase() !== 'pass') {
+      } else if (typeof runtimeStatus?.result === 'string' && runtimeStatus.result.toLowerCase() !== 'pass') {
         runtimeWorst = runtimeStatus.result;
         runtimeReasons.push(runtimeStatus.reason);
         runtimeStderr ||= runtimeStatus.stderr;
