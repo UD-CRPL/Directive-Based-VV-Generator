@@ -87,6 +87,7 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [mode, setMode] = useState<'compiler' | 'runtime'>('compiler');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [graphGenerated, setGraphGenerated] = useState(false);
   const [graphMode, setGraphMode] = useState<'compiler' | 'runtime'>('compiler');
   const navigate = useNavigate();
 
@@ -97,11 +98,11 @@ useEffect(() => {
 }, [mode, rawJsonText]);
 
 useEffect(() => {
-  if (comparisonFiles.length === 2) {
+  if (graphGenerated && comparisonFiles.length === 2) {
     generateComparisonGraph();
   }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [graphMode, comparisonFiles]);
+}, [graphMode]);
 
   function sortTestNames(testNames: string[]): string[] {
     const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
@@ -320,7 +321,10 @@ useEffect(() => {
         <div className="flex justify-center gap-4">
           <button
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
-            onClick={generateComparisonGraph}
+            onClick={() => {
+              generateComparisonGraph();
+              setGraphGenerated(true);
+            }}
           >
             Generate Graph
           </button>
