@@ -25,39 +25,55 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [uploadedFileName, setUploadedFileName] = useState('');
   const navigate = useNavigate();
 
-  function parseJSONResults(fileText: string) {
-    const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
-    const data = JSON.parse(sanitized);
-    const runs = data.runs;
+  function sortTestNames(testNames: string[]): string[] {
+  const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
 
-    const summaryCounts: Summary = {
-      C: { total: 0, pass: 0, fail: 0 },
-      CPP: { total: 0, pass: 0, fail: 0 },
-      F90: { total: 0, pass: 0, fail: 0 },
-      failures: [],
-    };
+  return testNames.sort((a, b) => {
+    const [baseA, extA] = a.toLowerCase().split(/\.(?=[^.]+$)/);
+    const [baseB, extB] = b.toLowerCase().split(/\.(?=[^.]+$)/);
 
-    for (const testName in runs) {
-      const ext = testName.split('.').pop()?.toLowerCase();
-      const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
-      if (!lang) continue;
+    if (baseA < baseB) return -1;
+    if (baseA > baseB) return 1;
 
-      const testEntry = runs[testName][0];
-      const compileResult = testEntry?.compilation?.result;
+    return (langOrder[extA] ?? 3) - (langOrder[extB] ?? 3);
+  });
+}
 
-      summaryCounts[lang].total++;
+function parseJSONResults(fileText: string) {
+  const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
+  const data = JSON.parse(sanitized);
+  const runs = data.runs;
 
-      if (compileResult === 0) {
-        summaryCounts[lang].pass++;
-      } else {
-        summaryCounts[lang].fail++;
-        const reason = testEntry?.compilation?.stderr?.split('\n')[0] || 'Unknown compile error';
-        summaryCounts.failures.push({ name: testName, reason });
-      }
+  const summaryCounts: Summary = {
+    C: { total: 0, pass: 0, fail: 0 },
+    CPP: { total: 0, pass: 0, fail: 0 },
+    F90: { total: 0, pass: 0, fail: 0 },
+    failures: [],
+  };
+
+  const sortedNames = sortTestNames(Object.keys(runs));
+  for (const testName of sortedNames) {
+    const ext = testName.split('.').pop()?.toLowerCase();
+    const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+    if (!lang) continue;
+
+    const testEntry = runs[testName][0];
+    const compileResult = testEntry?.compilation?.result;
+
+    summaryCounts[lang].total++;
+
+    if (compileResult === 0) {
+      summaryCounts[lang].pass++;
+    } else {
+      summaryCounts[lang].fail++;
+      const reason = testEntry?.compilation?.stderr?.split('\n')[0] || 'Unknown compile error';
+      summaryCounts.failures.push({ name: testName, reason });
     }
-
-    setSummary(summaryCounts);
   }
+
+  setSummary(summaryCounts);
+}
+
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -76,49 +92,51 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
     document.querySelectorAll("input[type='file']").forEach((input) => ((input as HTMLInputElement).value = ''));
   }
 
-  function generateComparisonGraph() {
-    if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
+function generateComparisonGraph() {
+  if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
 
-    const readers = [new FileReader(), new FileReader()];
-    const summaries: any[] = [];
+  const readers = [new FileReader(), new FileReader()];
+  const summaries: any[] = [];
 
-    readers.forEach((reader, index) => {
-      reader.onload = (e) => {
-        const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
-        const data = JSON.parse(fileText);
-        const runs = data.runs;
+  readers.forEach((reader, index) => {
+    reader.onload = (e) => {
+      const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
+      const data = JSON.parse(fileText);
+      const runs = data.runs;
 
-        const summaryCounts = {
-          C: { total: 0, pass: 0, fail: 0 },
-          CPP: { total: 0, pass: 0, fail: 0 },
-          F90: { total: 0, pass: 0, fail: 0 },
-        };
-
-        for (const test in runs) {
-          const ext = test.split('.').pop()?.toLowerCase();
-          const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
-          if (!lang) continue;
-
-          summaryCounts[lang].total++;
-          const passed = runs[test][0]?.compilation?.result === 0;
-          if (passed) summaryCounts[lang].pass++;
-          else summaryCounts[lang].fail++;
-        }
-
-        summaries[index] = summaryCounts;
-
-        if (summaries.filter(Boolean).length === 2) {
-          const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
-            language: lang,
-            version1: summaries[0][lang].pass,
-            version2: summaries[1][lang].pass,
-          }));
-          setComparisonData(chartData);
-        }
+      const summaryCounts = {
+        C: { total: 0, pass: 0, fail: 0 },
+        CPP: { total: 0, pass: 0, fail: 0 },
+        F90: { total: 0, pass: 0, fail: 0 },
       };
-      reader.readAsText(comparisonFiles[index]);
-    });
-  }
+
+      const sortedNames = sortTestNames(Object.keys(runs));
+      for (const testName of sortedNames) {
+        const ext = testName.split('.').pop()?.toLowerCase();
+        const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+        if (!lang) continue;
+
+        summaryCounts[lang].total++;
+        const passed = runs[testName][0]?.compilation?.result === 0;
+        if (passed) summaryCounts[lang].pass++;
+        else summaryCounts[lang].fail++;
+      }
+
+      summaries[index] = summaryCounts;
+
+      if (summaries.filter(Boolean).length === 2) {
+        const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
+          language: lang,
+          version1: summaries[0][lang].pass,
+          version2: summaries[1][lang].pass,
+        }));
+        setComparisonData(chartData);
+      }
+    };
+    reader.readAsText(comparisonFiles[index]);
+  });
+}
+
 
   return (
     <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
