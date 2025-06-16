@@ -76,7 +76,7 @@ useEffect(() => {
       const rStatus = getRuntimeStatus(run);
 
       if (cStatus.result !== 0) {
-        compilerStatusFinal.result = 1;
+        compilerStatusFinal.result = cStatus.result;
         compilerStatusFinal.reason = cStatus.reason;
         compilerStatusFinal.stderr ||= cStatus.stderr;
         compilerStatusFinal.stdout ||= cStatus.stdout;
@@ -89,7 +89,7 @@ useEffect(() => {
           : false;
 
       if (isRuntimeFail) {
-        runtimeStatusFinal.result = typeof rStatus.result === 'number' ? 1 : rStatus.result;
+        runtimeStatusFinal.result = rStatus.result;
         runtimeStatusFinal.reason = rStatus.reason;
         runtimeStatusFinal.stderr ||= rStatus.stderr;
         runtimeStatusFinal.output ||= rStatus.output;
