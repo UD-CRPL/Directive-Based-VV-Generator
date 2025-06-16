@@ -57,8 +57,8 @@ useEffect(() => {
   };
 
   const parsedFailures: FailureDetail[] = [];
-
   const sortedNames = sortTestNames(Object.keys(runs));
+
   for (const testName of sortedNames) {
     const runArray = runs[testName];
     if (!Array.isArray(runArray) || runArray.length === 0) continue;
@@ -69,52 +69,46 @@ useEffect(() => {
     else if (ext === 'cpp') language = 'CPP';
     else if (ext === 'f90') language = 'F90';
 
-    let compilerWorst = 0;
-    let runtimeWorst: number | string = 0;
-
-    const compilerReasons: string[] = [];
-    const runtimeReasons: string[] = [];
-
-    let compilerStderr = '';
-    let compilerStdout = '';
-    let runtimeStderr = '';
-    let runtimeOutput = '';
+    let compilerStatusFinal = { result: 0, reason: 'Pass', stderr: '', stdout: '' };
+    let runtimeStatusFinal: { result: number | string, reason: string, stderr: string, output: string } =
+      { result: 0, reason: 'Pass', stderr: '', output: '' };
 
     for (const run of runArray) {
-      const compilerStatus = getCompilerStatus(run);
-      const runtimeStatus = getRuntimeStatus(run);
+      const cStatus = getCompilerStatus(run);
+      const rStatus = getRuntimeStatus(run);
 
-      if (compilerStatus.result !== 0) {
-        compilerWorst = 1;
-        compilerReasons.push(compilerStatus.reason);
-        compilerStderr ||= compilerStatus.stderr;
-        compilerStdout ||= compilerStatus.stdout;
+      if (cStatus.result !== 0) {
+        compilerStatusFinal.result = 1;
+        compilerStatusFinal.reason = cStatus.reason;
+        compilerStatusFinal.stderr ||= cStatus.stderr;
+        compilerStatusFinal.stdout ||= cStatus.stdout;
       }
 
-      if (typeof runtimeStatus?.result === 'number' && runtimeStatus.result !== 0) {
-        runtimeWorst = 1;
-        runtimeReasons.push(runtimeStatus.reason);
-        runtimeStderr ||= runtimeStatus.stderr;
-        runtimeOutput ||= runtimeStatus.output;
-      } else if (typeof runtimeStatus?.result === 'string' && runtimeStatus.result.toLowerCase() !== 'pass') {
-        runtimeWorst = runtimeStatus.result;
-        runtimeReasons.push(runtimeStatus.reason);
-        runtimeStderr ||= runtimeStatus.stderr;
-        runtimeOutput ||= runtimeStatus.output;
+      const isRuntimeFail = typeof rStatus.result === 'number'
+        ? rStatus.result !== 0
+        : typeof rStatus.result === 'string'
+          ? rStatus.result.toLowerCase() !== 'pass'
+          : false;
+
+      if (isRuntimeFail) {
+        runtimeStatusFinal.result = typeof rStatus.result === 'number' ? 1 : rStatus.result;
+        runtimeStatusFinal.reason = rStatus.reason;
+        runtimeStatusFinal.stderr ||= rStatus.stderr;
+        runtimeStatusFinal.output ||= rStatus.output;
       }
     }
 
     parsedFailures.push({
       name: testName,
-      compilerResult: compilerWorst,
-      compilerReason: compilerReasons.length ? Array.from(new Set(compilerReasons)).join('; ') : 'Pass',
-      runtimeResult: runtimeWorst,
-      runtimeReason: runtimeReasons.length ? Array.from(new Set(runtimeReasons)).join('; ') : 'Pass',
       language,
-      compilerStderr,
-      compilerStdout,
-      runtimeStderr,
-      runtimeOutput,
+      compilerResult: compilerStatusFinal.result,
+      compilerReason: compilerStatusFinal.reason || 'Pass',
+      runtimeResult: runtimeStatusFinal.result,
+      runtimeReason: runtimeStatusFinal.reason || 'Pass',
+      compilerStderr: compilerStatusFinal.stderr,
+      compilerStdout: compilerStatusFinal.stdout,
+      runtimeStderr: runtimeStatusFinal.stderr,
+      runtimeOutput: runtimeStatusFinal.output,
     });
   }
 
