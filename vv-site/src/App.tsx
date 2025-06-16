@@ -35,48 +35,43 @@ function parseJSONResultsHelper(
     failures: [],
   };
 
-  // Group test variants by base name
-  const groupedTests: { [base: string]: { [ext: string]: string } } = {};
-  for (const fullName of Object.keys(runs)) {
-    const match = fullName.match(/^(.*)\.([^.]+)$/);
-    if (!match) continue;
-    const [, base, ext] = match;
-    if (!groupedTests[base]) groupedTests[base] = {};
-    groupedTests[base][ext.toLowerCase()] = fullName;
-  }
+  const sortedNames = sortTestNames(Object.keys(runs));
 
-  for (const base in groupedTests) {
-    const group = groupedTests[base];
+  for (const testName of sortedNames) {
+    const runArray = runs[testName];
+    if (!Array.isArray(runArray) || runArray.length === 0) continue;
 
-    // Choose one representative: priority F90 > cpp > c
-    const ext = group['f90'] ? 'f90' : group['cpp'] ? 'cpp' : group['c'] ? 'c' : null;
-    if (!ext) continue;
+    const ext = testName.split('.').pop()?.toLowerCase();
+    let lang: 'C' | 'CPP' | 'F90' | null = null;
+    if (ext === 'c') lang = 'C';
+    else if (ext === 'cpp') lang = 'CPP';
+    else if (ext === 'f90') lang = 'F90';
+    if (!lang) continue;
 
-    const testName = group[ext];
-    const lang = ext === 'f90' ? 'F90' : ext === 'cpp' ? 'CPP' : 'C';
-    const testEntry = runs[testName]?.[0];
-    if (!testEntry) continue;
+    summaryCounts[lang].total++;
+
+    const firstCompilerFail = runArray.find((run) => getCompilerStatus(run).result !== 0);
+    const firstRuntimeFail = runArray.find((run) => {
+      const result = getRuntimeStatus(run).result;
+      return typeof result === 'number' ? result !== 0 : result.toLowerCase() !== 'pass';
+    });
 
     if (mode === 'compiler') {
-      const result = getCompilerStatus(testEntry);
-      summaryCounts[lang].total++;
-      if (result.result === 0) {
+      if (!firstCompilerFail) {
         summaryCounts[lang].pass++;
       } else {
         summaryCounts[lang].fail++;
-        summaryCounts.failures.push({ name: testName, reason: result.reason });
+        const reason = getCompilerStatus(firstCompilerFail).reason || 'Unknown';
+        summaryCounts.failures.push({ name: testName, reason });
       }
     } else {
-      const compilerResult = getCompilerStatus(testEntry);
-      if (compilerResult.result !== 0) continue;
-
-      const runtimeResult = getRuntimeStatus(testEntry);
-      summaryCounts[lang].total++;
-      if (runtimeResult.result === 0) {
+      if (firstCompilerFail) continue;
+      if (!firstRuntimeFail) {
         summaryCounts[lang].pass++;
       } else {
         summaryCounts[lang].fail++;
-        summaryCounts.failures.push({ name: testName, reason: runtimeResult.reason });
+        const reason = getRuntimeStatus(firstRuntimeFail).reason || 'Unknown';
+        summaryCounts.failures.push({ name: testName, reason });
       }
     }
   }
