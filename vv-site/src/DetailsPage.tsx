@@ -37,7 +37,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     runtime: true,
   });
 
-  useEffect(() => {
+useEffect(() => {
   const state = location.state as { rawJson: string };
   if (!state?.rawJson) return;
 
@@ -45,9 +45,21 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
   const data = JSON.parse(jsonText);
   const runs = data.runs;
 
+  const sortTestNames = (names: string[]) => {
+    const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
+    return names.sort((a, b) => {
+      const [baseA, extA] = a.toLowerCase().split(/\.(?=[^.]+$)/);
+      const [baseB, extB] = b.toLowerCase().split(/\.(?=[^.]+$)/);
+      if (baseA < baseB) return -1;
+      if (baseA > baseB) return 1;
+      return (langOrder[extA] ?? 3) - (langOrder[extB] ?? 3);
+    });
+  };
+
   const parsedFailures: FailureDetail[] = [];
 
-  for (const testName in runs) {
+  const sortedNames = sortTestNames(Object.keys(runs));
+  for (const testName of sortedNames) {
     const runArray = runs[testName];
     if (!Array.isArray(runArray) || runArray.length === 0) continue;
 
@@ -78,7 +90,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
         compilerStderr ||= compilerStatus.stderr;
         compilerStdout ||= compilerStatus.stdout;
       }
-      
+
       if (typeof runtimeStatus?.result === 'number' && runtimeStatus.result !== 0) {
         runtimeWorst = 1;
         runtimeReasons.push(runtimeStatus.reason);
