@@ -4,6 +4,7 @@ import {
 } from 'recharts';
 import { Routes, Route, useNavigate } from 'react-router-dom';
 import DetailsPage from './DetailsPage';
+import { getCompilerStatus, getRuntimeStatus } from './errorParser';
 
 interface Summary {
   C: { total: number; pass: number; fail: number };
@@ -17,29 +18,12 @@ interface HomePageProps {
   setDarkMode: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-function HomePage({ darkMode, setDarkMode }: HomePageProps) {
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [comparisonFiles, setComparisonFiles] = useState<File[]>([]);
-  const [comparisonData, setComparisonData] = useState<any[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadedFileName, setUploadedFileName] = useState('');
-  const navigate = useNavigate();
-
-  function sortTestNames(testNames: string[]): string[] {
-  const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
-
-  return testNames.sort((a, b) => {
-    const [baseA, extA] = a.toLowerCase().split(/\.(?=[^.]+$)/);
-    const [baseB, extB] = b.toLowerCase().split(/\.(?=[^.]+$)/);
-
-    if (baseA < baseB) return -1;
-    if (baseA > baseB) return 1;
-
-    return (langOrder[extA] ?? 3) - (langOrder[extB] ?? 3);
-  });
-}
-
-function parseJSONResults(fileText: string) {
+function parseJSONResultsHelper(
+  fileText: string,
+  mode: 'compiler' | 'runtime',
+  setSummary: React.Dispatch<React.SetStateAction<Summary | null>>,
+  sortTestNames: (testNames: string[]) => string[]
+) {
   const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
   const data = JSON.parse(sanitized);
   const runs = data.runs;
@@ -52,28 +36,88 @@ function parseJSONResults(fileText: string) {
   };
 
   const sortedNames = sortTestNames(Object.keys(runs));
-  for (const testName of sortedNames) {
-    const ext = testName.split('.').pop()?.toLowerCase();
-    const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
-    if (!lang) continue;
 
-    const testEntry = runs[testName][0];
-    const compileResult = testEntry?.compilation?.result;
+  for (const testName of sortedNames) {
+    const runArray = runs[testName];
+    if (!Array.isArray(runArray) || runArray.length === 0) continue;
+
+    const ext = testName.split('.').pop()?.toLowerCase();
+    let lang: 'C' | 'CPP' | 'F90' | null = null;
+    if (ext === 'c') lang = 'C';
+    else if (ext === 'cpp') lang = 'CPP';
+    else if (ext === 'f90') lang = 'F90';
+    if (!lang) continue;
 
     summaryCounts[lang].total++;
 
-    if (compileResult === 0) {
-      summaryCounts[lang].pass++;
+    const firstCompilerFail = runArray.find((run) => getCompilerStatus(run).result !== 0);
+    const firstRuntimeFail = runArray.find((run) => {
+      const result = getRuntimeStatus(run).result;
+      return typeof result === 'number' ? result !== 0 : result.toLowerCase() !== 'pass';
+    });
+
+    if (mode === 'compiler') {
+      if (!firstCompilerFail) {
+        summaryCounts[lang].pass++;
+      } else {
+        summaryCounts[lang].fail++;
+        const reason = getCompilerStatus(firstCompilerFail).reason || 'Unknown';
+        summaryCounts.failures.push({ name: testName, reason });
+      }
     } else {
-      summaryCounts[lang].fail++;
-      const reason = testEntry?.compilation?.stderr?.split('\n')[0] || 'Unknown compile error';
-      summaryCounts.failures.push({ name: testName, reason });
+      if (firstCompilerFail) continue;
+      if (!firstRuntimeFail) {
+        summaryCounts[lang].pass++;
+      } else {
+        summaryCounts[lang].fail++;
+        const reason = getRuntimeStatus(firstRuntimeFail).reason || 'Unknown';
+        summaryCounts.failures.push({ name: testName, reason });
+      }
     }
   }
 
   setSummary(summaryCounts);
 }
 
+function HomePage({ darkMode, setDarkMode }: HomePageProps) {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [rawJsonText, setRawJsonText] = useState<string | null>(null);
+  const [comparisonFiles, setComparisonFiles] = useState<File[]>([]);
+  const [comparisonData, setComparisonData] = useState<any[]>([]);
+  const [mode, setMode] = useState<'compiler' | 'runtime'>('compiler');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFileName, setUploadedFileName] = useState('');
+  const [graphMode, setGraphMode] = useState<'compiler' | 'runtime'>('compiler');
+  const navigate = useNavigate();
+
+useEffect(() => {
+  if (rawJsonText) {
+    parseJSONResultsHelper(rawJsonText, mode, setSummary, sortTestNames);
+  }
+}, [mode, rawJsonText]);
+
+useEffect(() => {
+  if (comparisonFiles.length === 2) {
+    generateComparisonGraph();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [graphMode, comparisonFiles]);
+
+  function sortTestNames(testNames: string[]): string[] {
+    const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
+    return testNames.sort((a, b) => {
+      const [baseA, extA] = a.toLowerCase().split(/\.(?=[^.]+$)/);
+      const [baseB, extB] = b.toLowerCase().split(/\.(?=[^.]+$)/);
+      if (baseA < baseB) return -1;
+      if (baseA > baseB) return 1;
+      return (langOrder[extA] ?? 3) - (langOrder[extB] ?? 3);
+    });
+  }
+
+  function parseJSONResults(fileText: string) {
+    setRawJsonText(fileText);
+    parseJSONResultsHelper(fileText, mode, setSummary, sortTestNames);
+  }
 
   function handleFileUpload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -92,52 +136,71 @@ function parseJSONResults(fileText: string) {
     document.querySelectorAll("input[type='file']").forEach((input) => ((input as HTMLInputElement).value = ''));
   }
 
-function generateComparisonGraph() {
+  function generateComparisonGraph() {
   if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
 
-  const readers = [new FileReader(), new FileReader()];
   const summaries: any[] = [];
 
-  readers.forEach((reader, index) => {
+  const processFile = (file: File, index: number) => {
+    const reader = new FileReader();
     reader.onload = (e) => {
-      const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
-      const data = JSON.parse(fileText);
+      const rawText = (e.target?.result as string)?.trim().replace(/^var jsonResults\s*=\s*/, '');
+      const data = JSON.parse(rawText);
       const runs = data.runs;
 
-      const summaryCounts = {
-        C: { total: 0, pass: 0, fail: 0 },
-        CPP: { total: 0, pass: 0, fail: 0 },
-        F90: { total: 0, pass: 0, fail: 0 },
-      };
+      const counts = { C: 0, CPP: 0, F90: 0 };
 
-      const sortedNames = sortTestNames(Object.keys(runs));
-      for (const testName of sortedNames) {
+      for (const testName of Object.keys(runs)) {
+        const runArray = runs[testName];
+        if (!Array.isArray(runArray) || runArray.length === 0) continue;
+
         const ext = testName.split('.').pop()?.toLowerCase();
-        const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
+        let lang: 'C' | 'CPP' | 'F90' | null = null;
+        if (ext === 'c') lang = 'C';
+        else if (ext === 'cpp') lang = 'CPP';
+        else if (ext === 'f90') lang = 'F90';
         if (!lang) continue;
 
-        summaryCounts[lang].total++;
-        const passed = runs[testName][0]?.compilation?.result === 0;
-        if (passed) summaryCounts[lang].pass++;
-        else summaryCounts[lang].fail++;
+        let compilerPass = true;
+        let runtimePass = true;
+
+        for (const run of runArray) {
+          const cStatus = getCompilerStatus(run);
+          const rStatus = getRuntimeStatus(run);
+
+          if (cStatus.result !== 0) compilerPass = false;
+
+          const isRuntimeFail = typeof rStatus.result === 'number'
+            ? rStatus.result !== 0
+            : typeof rStatus.result === 'string'
+              ? rStatus.result.toLowerCase() !== 'pass'
+              : false;
+
+          if (isRuntimeFail) runtimePass = false;
+        }
+
+        if (graphMode === 'compiler' && compilerPass) counts[lang]++;
+        if (graphMode === 'runtime' && compilerPass && runtimePass) counts[lang]++;
       }
 
-      summaries[index] = summaryCounts;
+      summaries[index] = counts;
 
       if (summaries.filter(Boolean).length === 2) {
         const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
           language: lang,
-          version1: summaries[0][lang].pass,
-          version2: summaries[1][lang].pass,
+          version1: summaries[0][lang],
+          version2: summaries[1][lang],
         }));
         setComparisonData(chartData);
       }
     };
-    reader.readAsText(comparisonFiles[index]);
-  });
+    reader.readAsText(file);
+  };
+
+  processFile(comparisonFiles[0], 0);
+  processFile(comparisonFiles[1], 1);
 }
-
-
+ 
   return (
     <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
       <div className="flex justify-end mb-6">
@@ -163,56 +226,72 @@ function generateComparisonGraph() {
         </div>
 
         {summary && (
-          <div className={`mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
-            <h3 className="text-xl font-semibold mb-4 text-center">Test Summary</h3>
-            {['C', 'CPP', 'F90'].map((lang) => (
-              <div key={lang} className="mb-4 border-b pb-2">
-                <p className="text-lg font-medium">{lang}</p>
-                <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
-                <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
-                <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-blue-500 dark:text-blue-300 hover:underline">
-                    Show failing tests
-                  </summary>
-                  <ul className="list-disc pl-5 text-sm text-red-600 dark:text-red-400 mt-2 max-h-48 overflow-y-auto">
-                    {summary.failures
-                      .filter((f) => {
-                        const ext = f.name.split('.').pop();
-                        return (
-                          (lang === 'C' && ext === 'c') ||
-                          (lang === 'CPP' && ext === 'cpp') ||
-                          (lang === 'F90' && ext?.toLowerCase() === 'f90')
-                        );
-                      })
-                      .map((f, i) => (
-                        <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
-                      ))}
-                  </ul>
-                </details>
-              </div>
-            ))}
-
-            <div className="flex flex-col items-center mt-4">
+            <><div className="flex items-center justify-end mb-4">
+              <span className="mr-2 font-semibold text-sm text-gray-700 dark:text-gray-300">
+                {mode === 'compiler' ? 'Compiler' : 'Runtime'}
+              </span>
               <button
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded shadow"
-                onClick={() => {
-                  const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
-                  const file = input?.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = (e) => {
-                    const rawJson = e.target?.result as string;
-                    navigate('/details', { state: { rawJson } });
-                  };
-                  reader.readAsText(file);
-                }}
+                onClick={() => setMode(mode === 'compiler' ? 'runtime' : 'compiler')}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                  mode === 'compiler' ? 'bg-blue-500' : 'bg-green-500'
+                }`}
               >
-                View Details
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                    mode === 'compiler' ? 'translate-x-1' : 'translate-x-6'
+                  }`}
+                />
               </button>
-              <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">Click to see detailed breakdown and generate Excel export</p>
-            </div>
-          </div>
+            </div><div className={`mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-700 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
+              <h3 className="text-xl font-semibold mb-4 text-center">Test Summary</h3>
+              {['C', 'CPP', 'F90'].map((lang) => (
+                <div key={lang} className="mb-4 border-b pb-2">
+                  <p className="text-lg font-medium">{lang}</p>
+                  <p>Total: {summary[lang as 'C' | 'CPP' | 'F90'].total}</p>
+                  <p>Passing: {summary[lang as 'C' | 'CPP' | 'F90'].pass}</p>
+                  <p>Failing: {summary[lang as 'C' | 'CPP' | 'F90'].fail}</p>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-blue-500 dark:text-blue-300 hover:underline">
+                      Show failing tests
+                    </summary>
+                    <ul className="list-disc pl-5 text-sm text-red-600 dark:text-red-400 mt-2 max-h-48 overflow-y-auto">
+                      {summary.failures
+                        .filter((f) => {
+                          const ext = f.name.split('.').pop();
+                          return (
+                            (lang === 'C' && ext === 'c') ||
+                            (lang === 'CPP' && ext === 'cpp') ||
+                            (lang === 'F90' && ext?.toLowerCase() === 'f90')
+                          );
+                        })
+                        .map((f, i) => (
+                          <li key={i}><strong>{f.name}</strong>: {f.reason}</li>
+                        ))}
+                    </ul>
+                  </details>
+                </div>
+              ))}
+
+              <div className="flex flex-col items-center mt-4">
+                <button
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-2 rounded shadow"
+                  onClick={() => {
+                    const input = document.querySelector("input[type='file']") as HTMLInputElement | null;
+                    const file = input?.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                      const rawJson = e.target?.result as string;
+                      navigate('/details', { state: { rawJson } });
+                    };
+                    reader.readAsText(file);
+                  } }
+                >
+                  View Details
+                </button>
+                <p className="text-sm mt-2 text-gray-600 dark:text-gray-400">Click to see detailed breakdown and generate Excel export</p>
+              </div>
+            </div></>
         )}
       </div>
 
@@ -252,7 +331,25 @@ function generateComparisonGraph() {
             Clear Files
           </button>
         </div>
-
+        {comparisonFiles.filter(Boolean).length === 2 && (
+          <div className="flex justify-end items-center mb-4">
+            <span className="mr-2 font-semibold text-sm text-gray-700 dark:text-gray-300">
+              {graphMode === 'compiler' ? 'Compiler' : 'Runtime'}
+            </span>
+            <button
+              onClick={() => setGraphMode(prev => prev === 'compiler' ? 'runtime' : 'compiler')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                graphMode === 'compiler' ? 'bg-blue-500' : 'bg-green-500'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  graphMode === 'compiler' ? 'translate-x-1' : 'translate-x-6'
+                }`}
+              />
+            </button>
+          </div>
+        )}
         {comparisonData.length > 0 && (
           <div className={`h-96 mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
             <ResponsiveContainer width="100%" height="100%">

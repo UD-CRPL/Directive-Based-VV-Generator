@@ -25,12 +25,10 @@ interface Props {
 const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
   const location = useLocation();
   const navigate = useNavigate();
-
   const [failures, setFailures] = useState<FailureDetail[]>([]);
   const [filter, setFilter] = useState<'all' | 'pass' | 'fail'>('all');
   const [languageFilter, setLanguageFilter] = useState<'all' | 'C' | 'CPP' | 'F90'>('all');
   const [logModal, setLogModal] = useState<FailureDetail | null>(null);
-
   const [expandedSections, setExpandedSections] = useState<Record<'all' | 'compiler' | 'runtime', boolean>>({
     all: false,
     compiler: true,

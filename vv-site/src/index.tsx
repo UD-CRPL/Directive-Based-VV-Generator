@@ -11,7 +11,7 @@ const root = ReactDOM.createRoot(
 
 root.render(
   <React.StrictMode>
-    <BrowserRouter> {/* ✅ Wrap App in BrowserRouter */}
+    <BrowserRouter> {/* Wrap App in BrowserRouter */}
       <App />
     </BrowserRouter>
   </React.StrictMode>
