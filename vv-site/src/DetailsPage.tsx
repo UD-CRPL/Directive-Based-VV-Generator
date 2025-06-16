@@ -37,46 +37,83 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     runtime: true,
   });
 
-  useEffect(() => {
-    const state = location.state as { rawJson: string };
-    if (!state?.rawJson) return;
+useEffect(() => {
+  const state = location.state as { rawJson: string };
+  if (!state?.rawJson) return;
 
-    const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
-    const data = JSON.parse(jsonText);
-    const runs = data.runs;
+  const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
+  const data = JSON.parse(jsonText);
+  const runs = data.runs;
 
-    const parsedFailures: FailureDetail[] = [];
+  const sortTestNames = (names: string[]) => {
+    const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
+    return names.sort((a, b) => {
+      const [baseA, extA] = a.toLowerCase().split(/\.(?=[^.]+$)/);
+      const [baseB, extB] = b.toLowerCase().split(/\.(?=[^.]+$)/);
+      if (baseA < baseB) return -1;
+      if (baseA > baseB) return 1;
+      return (langOrder[extA] ?? 3) - (langOrder[extB] ?? 3);
+    });
+  };
 
-    for (const testName in runs) {
-      const runArray = runs[testName];
-      if (!Array.isArray(runArray) || runArray.length === 0) continue;
-      const run = runArray[0];
+  const parsedFailures: FailureDetail[] = [];
+  const sortedNames = sortTestNames(Object.keys(runs));
 
-      const ext = testName.split('.').pop()?.toLowerCase();
-      let language = 'Other';
-      if (ext === 'c') language = 'C';
-      else if (ext === 'cpp') language = 'CPP';
-      else if (ext === 'f90') language = 'F90';
+  for (const testName of sortedNames) {
+    const runArray = runs[testName];
+    if (!Array.isArray(runArray) || runArray.length === 0) continue;
 
-      const compilerStatus = getCompilerStatus(run);
-      const runtimeStatus = getRuntimeStatus(run);
+    const ext = testName.split('.').pop()?.toLowerCase();
+    let language = 'Other';
+    if (ext === 'c') language = 'C';
+    else if (ext === 'cpp') language = 'CPP';
+    else if (ext === 'f90') language = 'F90';
 
-      parsedFailures.push({
-        name: testName,
-        compilerResult: compilerStatus.result,
-        compilerReason: compilerStatus.reason,
-        runtimeResult: runtimeStatus.result,
-        runtimeReason: runtimeStatus.reason,
-        language,
-        compilerStderr: compilerStatus.stderr,
-        compilerStdout: compilerStatus.stdout,
-        runtimeStderr: runtimeStatus.stderr,
-        runtimeOutput: runtimeStatus.output
-      });
+    let compilerStatusFinal = { result: 0, reason: 'Pass', stderr: '', stdout: '' };
+    let runtimeStatusFinal: { result: number | string, reason: string, stderr: string, output: string } =
+      { result: 0, reason: 'Pass', stderr: '', output: '' };
+
+    for (const run of runArray) {
+      const cStatus = getCompilerStatus(run);
+      const rStatus = getRuntimeStatus(run);
+
+      if (cStatus.result !== 0) {
+        compilerStatusFinal.result = 1;
+        compilerStatusFinal.reason = cStatus.reason;
+        compilerStatusFinal.stderr ||= cStatus.stderr;
+        compilerStatusFinal.stdout ||= cStatus.stdout;
+      }
+
+      const isRuntimeFail = typeof rStatus.result === 'number'
+        ? rStatus.result !== 0
+        : typeof rStatus.result === 'string'
+          ? rStatus.result.toLowerCase() !== 'pass'
+          : false;
+
+      if (isRuntimeFail) {
+        runtimeStatusFinal.result = typeof rStatus.result === 'number' ? 1 : rStatus.result;
+        runtimeStatusFinal.reason = rStatus.reason;
+        runtimeStatusFinal.stderr ||= rStatus.stderr;
+        runtimeStatusFinal.output ||= rStatus.output;
+      }
     }
 
-    setFailures(parsedFailures);
-  }, [location.state]);
+    parsedFailures.push({
+      name: testName,
+      language,
+      compilerResult: compilerStatusFinal.result,
+      compilerReason: compilerStatusFinal.reason || 'Pass',
+      runtimeResult: runtimeStatusFinal.result,
+      runtimeReason: runtimeStatusFinal.reason || 'Pass',
+      compilerStderr: compilerStatusFinal.stderr,
+      compilerStdout: compilerStatusFinal.stdout,
+      runtimeStderr: runtimeStatusFinal.stderr,
+      runtimeOutput: runtimeStatusFinal.output,
+    });
+  }
+
+  setFailures(parsedFailures);
+}, [location.state]);
 
   const filteredData = failures.filter((entry) => {
     const runtimeNumeric = typeof entry.runtimeResult === 'number' ? entry.runtimeResult : -1;
@@ -131,12 +168,10 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
                     <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
                     <td className="p-3 border text-center">{f.language}</td>
                     <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${isCompilerPass ? 'text-gray-700 dark:text-gray-300' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
+                    <td className={`p-3 border ${ f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
                     <td className={`p-3 border text-center font-semibold ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
-                    }`}>
-                      {f.runtimeResult}
-                    </td>
+                    isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
+                    }`}> {f.runtimeResult}</td>
                     <td className={`p-3 border ${
                       isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
                     }`}>
@@ -211,7 +246,7 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
 
       {logModal && (
         <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-xl w-[90%] max-w-4xl max-h-[90%] overflow-y-auto">
+          <div className="bg-gray-900 text-white p-6 rounded-lg shadow-xl w-[90%] max-w-4xl max-h-[90%] overflow-y-auto">
             <h2 className="text-2xl font-bold mb-2 text-indigo-600 dark:text-indigo-300">{logModal.name} – Full Log</h2>
             <div className="text-sm font-mono whitespace-pre-wrap">
               <h3 className="mt-4 font-bold text-blue-600 dark:text-blue-400">Compiler Stdout:</h3>
