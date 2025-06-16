@@ -87,6 +87,7 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [mode, setMode] = useState<'compiler' | 'runtime'>('compiler');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
+  const [graphMode, setGraphMode] = useState<'compiler' | 'runtime'>('compiler');
   const navigate = useNavigate();
 
 useEffect(() => {
@@ -95,6 +96,12 @@ useEffect(() => {
   }
 }, [mode, rawJsonText]);
 
+useEffect(() => {
+  if (comparisonFiles.length === 2) {
+    generateComparisonGraph();
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [graphMode, comparisonFiles]);
 
   function sortTestNames(testNames: string[]): string[] {
     const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
@@ -130,50 +137,70 @@ useEffect(() => {
   }
 
   function generateComparisonGraph() {
-    if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
+  if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
 
-    const readers = [new FileReader(), new FileReader()];
-    const summaries: any[] = [];
+  const summaries: any[] = [];
 
-    readers.forEach((reader, index) => {
-      reader.onload = (e) => {
-        const fileText = (e.target?.result as string).trim().replace(/^var jsonResults\s*=\s*/, '');
-        const data = JSON.parse(fileText);
-        const runs = data.runs;
+  const processFile = (file: File, index: number) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const rawText = (e.target?.result as string)?.trim().replace(/^var jsonResults\s*=\s*/, '');
+      const data = JSON.parse(rawText);
+      const runs = data.runs;
 
-        const summaryCounts = {
-          C: { total: 0, pass: 0, fail: 0 },
-          CPP: { total: 0, pass: 0, fail: 0 },
-          F90: { total: 0, pass: 0, fail: 0 },
-        };
+      const counts = { C: 0, CPP: 0, F90: 0 };
 
-        const sortedNames = sortTestNames(Object.keys(runs));
-        for (const testName of sortedNames) {
-          const ext = testName.split('.').pop()?.toLowerCase();
-          const lang = ext === 'c' ? 'C' : ext === 'cpp' ? 'CPP' : ext === 'f90' ? 'F90' : null;
-          if (!lang) continue;
+      for (const testName of Object.keys(runs)) {
+        const runArray = runs[testName];
+        if (!Array.isArray(runArray) || runArray.length === 0) continue;
 
-          summaryCounts[lang].total++;
-          const passed = runs[testName][0]?.compilation?.result === 0;
-          if (passed) summaryCounts[lang].pass++;
-          else summaryCounts[lang].fail++;
+        const ext = testName.split('.').pop()?.toLowerCase();
+        let lang: 'C' | 'CPP' | 'F90' | null = null;
+        if (ext === 'c') lang = 'C';
+        else if (ext === 'cpp') lang = 'CPP';
+        else if (ext === 'f90') lang = 'F90';
+        if (!lang) continue;
+
+        let compilerPass = true;
+        let runtimePass = true;
+
+        for (const run of runArray) {
+          const cStatus = getCompilerStatus(run);
+          const rStatus = getRuntimeStatus(run);
+
+          if (cStatus.result !== 0) compilerPass = false;
+
+          const isRuntimeFail = typeof rStatus.result === 'number'
+            ? rStatus.result !== 0
+            : typeof rStatus.result === 'string'
+              ? rStatus.result.toLowerCase() !== 'pass'
+              : false;
+
+          if (isRuntimeFail) runtimePass = false;
         }
 
-        summaries[index] = summaryCounts;
+        if (graphMode === 'compiler' && compilerPass) counts[lang]++;
+        if (graphMode === 'runtime' && compilerPass && runtimePass) counts[lang]++;
+      }
 
-        if (summaries.filter(Boolean).length === 2) {
-          const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
-            language: lang,
-            version1: summaries[0][lang].pass,
-            version2: summaries[1][lang].pass,
-          }));
-          setComparisonData(chartData);
-        }
-      };
-      reader.readAsText(comparisonFiles[index]);
-    });
-  }
-  
+      summaries[index] = counts;
+
+      if (summaries.filter(Boolean).length === 2) {
+        const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
+          language: lang,
+          version1: summaries[0][lang],
+          version2: summaries[1][lang],
+        }));
+        setComparisonData(chartData);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  processFile(comparisonFiles[0], 0);
+  processFile(comparisonFiles[1], 1);
+}
+ 
   return (
     <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
       <div className="flex justify-end mb-6">
@@ -304,7 +331,25 @@ useEffect(() => {
             Clear Files
           </button>
         </div>
-
+        {comparisonFiles.filter(Boolean).length === 2 && (
+          <div className="flex justify-end items-center mb-4">
+            <span className="mr-2 font-semibold text-sm text-gray-700 dark:text-gray-300">
+              {graphMode === 'compiler' ? 'Compiler' : 'Runtime'}
+            </span>
+            <button
+              onClick={() => setGraphMode(prev => prev === 'compiler' ? 'runtime' : 'compiler')}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                graphMode === 'compiler' ? 'bg-blue-500' : 'bg-green-500'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                  graphMode === 'compiler' ? 'translate-x-1' : 'translate-x-6'
+                }`}
+              />
+            </button>
+          </div>
+        )}
         {comparisonData.length > 0 && (
           <div className={`h-96 mt-6 p-4 rounded border ${darkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-gray-50 border-gray-300 text-black'}`}>
             <ResponsiveContainer width="100%" height="100%">
