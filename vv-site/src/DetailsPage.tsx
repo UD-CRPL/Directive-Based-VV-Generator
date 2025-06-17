@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCompilerStatus, getRuntimeStatus } from './errorParser';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 
 interface FailureDetail {
   name: string;
@@ -36,23 +36,93 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     runtime: true,
   });
   const exportToExcel = (data: FailureDetail[], fileName: string) => {
-  const formatted = data.map(d => ({
-    "Test Name": d.name,
-    "Language": d.language,
-    "Compiler Result": d.compilerResult,
-    "Compiler Reason": d.compilerReason,
-    "Runtime Result": d.runtimeResult,
-    "Runtime Reason": d.runtimeReason,
-    "Compiler Stderr": d.compilerStderr,
-    "Compiler Stdout": d.compilerStdout,
-    "Runtime Stderr": d.runtimeStderr,
-    "Runtime Output": d.runtimeOutput,
-  }));
+  const header = [
+    "Test Name",
+    "Language",
+    "Compiler Result",
+    "Compiler Reason",
+    "Runtime Result",
+    "Runtime Reason",
+    "Compiler Stderr",
+    "Compiler Stdout",
+    "Runtime Stderr",
+    "Runtime Output"
+  ];
 
-  const worksheet = XLSX.utils.json_to_sheet(formatted);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Details");
-  XLSX.writeFile(workbook, `${fileName}.xlsx`);
+  const body = data.map(d => [
+    d.name,
+    d.language,
+    d.compilerResult,
+    d.compilerReason,
+    d.runtimeResult,
+    d.runtimeReason,
+    d.compilerStderr,
+    d.compilerStdout,
+    d.runtimeStderr,
+    d.runtimeOutput
+  ]);
+
+  const worksheetData = [header, ...body];
+  const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+
+  // Set column widths
+  const colWidths = [25, 10, 15, 25, 15, 25, 30, 30, 30, 30];
+  ws['!cols'] = colWidths.map(w => ({ wch: w }));
+
+  // Set row heights (starting from row 1, header is 0)
+  ws['!rows'] = worksheetData.map((_, i) => ({ hpt: i === 0 ? 24 : 28 }));
+
+  // Style headers
+  header.forEach((_, colIndex) => {
+    const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+    ws[cellRef].s = {
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+      fill: { fgColor: { rgb: "4F46E5" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { rgb: "CCCCCC" } },
+        bottom: { style: "thin", color: { rgb: "CCCCCC" } }
+      }
+    };
+  });
+
+  // Style data rows
+  for (let r = 1; r < worksheetData.length; r++) {
+    const row = worksheetData[r];
+    for (let c = 0; c < row.length; c++) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[cellRef];
+
+      const val = row[c];
+
+      // Default styling
+      cell.s = {
+        font: { name: "Calibri", sz: 11 },
+        alignment: { vertical: "top", wrapText: true },
+      };
+
+      // Apply color to result/reason cells (text only)
+      if ([2, 3, 4, 5].includes(c)) {
+        // const failKeywords = ["fail", "error", "segmentation", "undefined", "aborted"];
+        const valStr = String(val).toLowerCase();
+        const isPass = valStr === '0' || valStr === 'pass';
+        const isUnknown = valStr === 'unknown';
+        const isFail = !(valStr === '0' || valStr === 'unknown');
+        cell.s.font = {
+          ...cell.s.font,
+          bold: true,
+          color: {
+            rgb: isPass ? "22C55E" : isUnknown ? "3B82F6" : isFail ? "EF4444" : "000000"
+          }
+        };
+      }
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Details");
+
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
 };
 
 useEffect(() => {
@@ -157,15 +227,18 @@ useEffect(() => {
         onClick={() => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))}
         className="text-left w-full text-2xl font-bold mb-2 focus:outline-none bg-gradient-to-r from-blue-300 via-purple-400 to-indigo-400 text-white px-5 py-3 rounded-lg shadow hover:opacity-90 transition duration-300"
       >
-        {expandedSections[key] ? '▼' : '▶'} {title}
+      <span className="inline-block w-5 text-xl transform transition-transform duration-300">
+        {expandedSections[key] ? '▼' : '►'}
+      </span>
+      <span className="ml-1">{title}</span>
       </button>
       {expandedSections[key] && (
         <><div className="text-right mb-2">
           <button
             onClick={() => exportToExcel(data, `${title.replace(/\s+/g, '_')}_Report`)}
-            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
+            className="backdrop-blur-md bg-green-400/10 hover:bg-green-400/20 text-green-500 font-semibold px-6 py-2 rounded-xl border border-green-500 shadow-md hover:shadow-lg transition-all duration-300"
           >
-            📥 Download Excel
+            Download Excel
           </button>
         </div><div className={`overflow-x-auto border rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
             <table className="table-auto w-full text-sm">
