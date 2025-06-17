@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCompilerStatus, getRuntimeStatus } from './errorParser';
+import * as XLSX from 'xlsx-js-style';
 
 interface FailureDetail {
   name: string;
@@ -34,6 +35,95 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     compiler: true,
     runtime: true,
   });
+  const exportToExcel = (data: FailureDetail[], fileName: string) => {
+  const header = [
+    "Test Name",
+    "Language",
+    "Compiler Result",
+    "Compiler Reason",
+    "Runtime Result",
+    "Runtime Reason",
+    "Compiler Stderr",
+    "Compiler Stdout",
+    "Runtime Stderr",
+    "Runtime Output"
+  ];
+
+  const body = data.map(d => [
+    d.name,
+    d.language,
+    d.compilerResult,
+    d.compilerReason,
+    d.runtimeResult,
+    d.runtimeReason,
+    d.compilerStderr,
+    d.compilerStdout,
+    d.runtimeStderr,
+    d.runtimeOutput
+  ]);
+
+  const worksheetData = [header, ...body];
+  const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+
+  // Set column widths
+  const colWidths = [25, 10, 15, 25, 15, 25, 30, 30, 30, 30];
+  ws['!cols'] = colWidths.map(w => ({ wch: w }));
+
+  // Set row heights (starting from row 1, header is 0)
+  ws['!rows'] = worksheetData.map((_, i) => ({ hpt: i === 0 ? 24 : 28 }));
+
+  // Style headers
+  header.forEach((_, colIndex) => {
+    const cellRef = XLSX.utils.encode_cell({ r: 0, c: colIndex });
+    ws[cellRef].s = {
+      font: { bold: true, color: { rgb: "FFFFFF" }, sz: 12 },
+      fill: { fgColor: { rgb: "4F46E5" } },
+      alignment: { horizontal: "center", vertical: "center", wrapText: true },
+      border: {
+        top: { style: "thin", color: { rgb: "CCCCCC" } },
+        bottom: { style: "thin", color: { rgb: "CCCCCC" } }
+      }
+    };
+  });
+
+  // Style data rows
+  for (let r = 1; r < worksheetData.length; r++) {
+    const row = worksheetData[r];
+    for (let c = 0; c < row.length; c++) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      const cell = ws[cellRef];
+
+      const val = row[c];
+
+      // Default styling
+      cell.s = {
+        font: { name: "Calibri", sz: 11 },
+        alignment: { vertical: "top", wrapText: true },
+      };
+
+      // Apply color to result/reason cells (text only)
+      if ([2, 3, 4, 5].includes(c)) {
+        // const failKeywords = ["fail", "error", "segmentation", "undefined", "aborted"];
+        const valStr = String(val).toLowerCase();
+        const isPass = valStr === '0' || valStr === 'pass';
+        const isUnknown = valStr === 'unknown';
+        const isFail = !(valStr === '0' || valStr === 'unknown');
+        cell.s.font = {
+          ...cell.s.font,
+          bold: true,
+          color: {
+            rgb: isPass ? "22C55E" : isUnknown ? "3B82F6" : isFail ? "EF4444" : "000000"
+          }
+        };
+      }
+    }
+  }
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Details");
+
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
+};
 
 useEffect(() => {
   const state = location.state as { rawJson: string };
@@ -137,58 +227,64 @@ useEffect(() => {
         onClick={() => setExpandedSections(prev => ({ ...prev, [key]: !prev[key] }))}
         className="text-left w-full text-2xl font-bold mb-2 focus:outline-none bg-gradient-to-r from-blue-300 via-purple-400 to-indigo-400 text-white px-5 py-3 rounded-lg shadow hover:opacity-90 transition duration-300"
       >
-        {expandedSections[key] ? '▼' : '▶'} {title}
+      <span className="inline-block w-5 text-xl transform transition-transform duration-300">
+        {expandedSections[key] ? '▼' : '►'}
+      </span>
+      <span className="ml-1">{title}</span>
       </button>
       {expandedSections[key] && (
-        <div className={`overflow-x-auto border rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
-          <table className="table-auto w-full text-sm">
-            <thead className={darkMode ? "bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700 text-white" : "bg-gray-200 text-gray-800"}>
-              <tr>
-                <th className="p-3 border">#</th>
-                <th className="p-3 border">Test Name</th>
-                <th className="p-3 border">Language</th>
-                <th className="p-3 border">Compiler Result</th>
-                <th className="p-3 border">Compiler Reason</th>
-                <th className="p-3 border">Runtime Result</th>
-                <th className="p-3 border">Runtime Reason</th>
-                <th className="p-3 border">Logs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((f, i) => {
-                const isUnknown = f.runtimeResult === 'Unknown';
-                const isPass = typeof f.runtimeResult === 'number' && f.runtimeResult === 0;
-                const isCompilerPass = f.compilerResult === 0;
+        <><div className="text-right mb-2">
+          <button
+            onClick={() => exportToExcel(data, `${title.replace(/\s+/g, '_')}_Report`)}
+            className="backdrop-blur-md bg-green-400/10 hover:bg-green-400/20 text-green-500 font-semibold px-6 py-2 rounded-xl border border-green-500 shadow-md hover:shadow-lg transition-all duration-300"
+          >
+            Download Excel
+          </button>
+        </div><div className={`overflow-x-auto border rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
+            <table className="table-auto w-full text-sm">
+              <thead className={darkMode ? "bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700 text-white" : "bg-gray-200 text-gray-800"}>
+                <tr>
+                  <th className="p-3 border">#</th>
+                  <th className="p-3 border">Test Name</th>
+                  <th className="p-3 border">Language</th>
+                  <th className="p-3 border">Compiler Result</th>
+                  <th className="p-3 border">Compiler Reason</th>
+                  <th className="p-3 border">Runtime Result</th>
+                  <th className="p-3 border">Runtime Reason</th>
+                  <th className="p-3 border">Logs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((f, i) => {
+                  const isUnknown = f.runtimeResult === 'Unknown';
+                  const isPass = typeof f.runtimeResult === 'number' && f.runtimeResult === 0;
+                  const isCompilerPass = f.compilerResult === 0;
 
-                return (
-                  <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
-                    <td className="p-3 border text-center font-mono">{i + 1}</td>
-                    <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
-                    <td className="p-3 border text-center">{f.language}</td>
-                    <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${ f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
-                    <td className={`p-3 border text-center font-semibold ${
-                    isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
-                    }`}> {f.runtimeResult}</td>
-                    <td className={`p-3 border ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
-                    }`}>
-                      {f.runtimeReason}
-                    </td>
-                    <td className="p-3 border text-center">
-                      <button
-                        className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
-                        onClick={() => setLogModal(f)}
-                      >
-                        View Full Log
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  return (
+                    <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
+                      <td className="p-3 border text-center font-mono">{i + 1}</td>
+                      <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
+                      <td className="p-3 border text-center">{f.language}</td>
+                      <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
+                      <td className={`p-3 border ${f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
+                      <td className={`p-3 border text-center font-semibold ${isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'}`}> {f.runtimeResult}</td>
+                      <td className={`p-3 border ${isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
+                        {f.runtimeReason}
+                      </td>
+                      <td className="p-3 border text-center">
+                        <button
+                          className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
+                          onClick={() => setLogModal(f)}
+                        >
+                          View Full Log
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div></>
       )}
     </div>
   );
@@ -196,8 +292,14 @@ useEffect(() => {
   return (
     <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 text-white' : 'bg-white text-black'} min-h-screen p-8`}>
       <div className="flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to Summary
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border border-blue-500 text-blue-500 hover:bg-blue-500/10 transition duration-300 backdrop-blur-sm shadow-sm hover:shadow-md"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Summary
         </button>
         <button onClick={() => setDarkMode(prev => !prev)} className="px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-600">
           Toggle {darkMode ? 'Light' : 'Dark'} Mode
