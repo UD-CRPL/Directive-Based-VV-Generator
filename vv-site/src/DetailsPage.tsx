@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCompilerStatus, getRuntimeStatus } from './errorParser';
+import * as XLSX from 'xlsx';
 
 interface FailureDetail {
   name: string;
@@ -34,6 +35,25 @@ const DetailsPage: React.FC<Props> = ({ darkMode, setDarkMode }) => {
     compiler: true,
     runtime: true,
   });
+  const exportToExcel = (data: FailureDetail[], fileName: string) => {
+  const formatted = data.map(d => ({
+    "Test Name": d.name,
+    "Language": d.language,
+    "Compiler Result": d.compilerResult,
+    "Compiler Reason": d.compilerReason,
+    "Runtime Result": d.runtimeResult,
+    "Runtime Reason": d.runtimeReason,
+    "Compiler Stderr": d.compilerStderr,
+    "Compiler Stdout": d.compilerStdout,
+    "Runtime Stderr": d.runtimeStderr,
+    "Runtime Output": d.runtimeOutput,
+  }));
+
+  const worksheet = XLSX.utils.json_to_sheet(formatted);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Details");
+  XLSX.writeFile(workbook, `${fileName}.xlsx`);
+};
 
 useEffect(() => {
   const state = location.state as { rawJson: string };
@@ -140,55 +160,58 @@ useEffect(() => {
         {expandedSections[key] ? '▼' : '▶'} {title}
       </button>
       {expandedSections[key] && (
-        <div className={`overflow-x-auto border rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
-          <table className="table-auto w-full text-sm">
-            <thead className={darkMode ? "bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700 text-white" : "bg-gray-200 text-gray-800"}>
-              <tr>
-                <th className="p-3 border">#</th>
-                <th className="p-3 border">Test Name</th>
-                <th className="p-3 border">Language</th>
-                <th className="p-3 border">Compiler Result</th>
-                <th className="p-3 border">Compiler Reason</th>
-                <th className="p-3 border">Runtime Result</th>
-                <th className="p-3 border">Runtime Reason</th>
-                <th className="p-3 border">Logs</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((f, i) => {
-                const isUnknown = f.runtimeResult === 'Unknown';
-                const isPass = typeof f.runtimeResult === 'number' && f.runtimeResult === 0;
-                const isCompilerPass = f.compilerResult === 0;
+        <><div className="text-right mb-2">
+          <button
+            onClick={() => exportToExcel(data, `${title.replace(/\s+/g, '_')}_Report`)}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
+          >
+            📥 Download Excel
+          </button>
+        </div><div className={`overflow-x-auto border rounded-lg shadow-xl ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}>
+            <table className="table-auto w-full text-sm">
+              <thead className={darkMode ? "bg-gradient-to-r from-indigo-700 via-purple-700 to-blue-700 text-white" : "bg-gray-200 text-gray-800"}>
+                <tr>
+                  <th className="p-3 border">#</th>
+                  <th className="p-3 border">Test Name</th>
+                  <th className="p-3 border">Language</th>
+                  <th className="p-3 border">Compiler Result</th>
+                  <th className="p-3 border">Compiler Reason</th>
+                  <th className="p-3 border">Runtime Result</th>
+                  <th className="p-3 border">Runtime Reason</th>
+                  <th className="p-3 border">Logs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.map((f, i) => {
+                  const isUnknown = f.runtimeResult === 'Unknown';
+                  const isPass = typeof f.runtimeResult === 'number' && f.runtimeResult === 0;
+                  const isCompilerPass = f.compilerResult === 0;
 
-                return (
-                  <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
-                    <td className="p-3 border text-center font-mono">{i + 1}</td>
-                    <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
-                    <td className="p-3 border text-center">{f.language}</td>
-                    <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
-                    <td className={`p-3 border ${ f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
-                    <td className={`p-3 border text-center font-semibold ${
-                    isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'
-                    }`}> {f.runtimeResult}</td>
-                    <td className={`p-3 border ${
-                      isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
-                    }`}>
-                      {f.runtimeReason}
-                    </td>
-                    <td className="p-3 border text-center">
-                      <button
-                        className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
-                        onClick={() => setLogModal(f)}
-                      >
-                        View Full Log
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  return (
+                    <tr key={i} className={darkMode ? "even:bg-gray-800" : "even:bg-gray-100"}>
+                      <td className="p-3 border text-center font-mono">{i + 1}</td>
+                      <td className="p-3 border font-bold text-blue-800 dark:text-blue-400">{f.name}</td>
+                      <td className="p-3 border text-center">{f.language}</td>
+                      <td className={`p-3 border text-center font-semibold ${isCompilerPass ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>{f.compilerResult}</td>
+                      <td className={`p-3 border ${f.compilerReason.toLowerCase() === 'pass' ? 'text-green-600 dark:text-green-500' : 'text-red-500 dark:text-red-500'}`}>{f.compilerReason}</td>
+                      <td className={`p-3 border text-center font-semibold ${isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-yellow-600 dark:text-yellow-400'}`}> {f.runtimeResult}</td>
+                      <td className={`p-3 border ${isUnknown ? 'text-blue-500 dark:text-blue-400' : isPass ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'}`}>
+                        {f.runtimeReason}
+                      </td>
+                      <td className="p-3 border text-center">
+                        <button
+                          className="text-sm text-blue-600 dark:text-blue-400 underline hover:text-blue-800"
+                          onClick={() => setLogModal(f)}
+                        >
+                          View Full Log
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div></>
       )}
     </div>
   );
