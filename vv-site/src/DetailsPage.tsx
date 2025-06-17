@@ -292,8 +292,14 @@ useEffect(() => {
   return (
     <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-950 text-white' : 'bg-white text-black'} min-h-screen p-8`}>
       <div className="flex justify-between items-center mb-6">
-        <button onClick={() => navigate(-1)} className="text-blue-600 dark:text-blue-400 hover:underline">
-          ← Back to Summary
+        <button
+          onClick={() => navigate(-1)}
+          className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg border border-blue-500 text-blue-500 hover:bg-blue-500/10 transition duration-300 backdrop-blur-sm shadow-sm hover:shadow-md"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Summary
         </button>
         <button onClick={() => setDarkMode(prev => !prev)} className="px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-600">
           Toggle {darkMode ? 'Light' : 'Dark'} Mode
