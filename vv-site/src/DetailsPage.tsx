@@ -1,5 +1,3 @@
-// DetailsPage.tsx
-
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getCompilerStatus, getRuntimeStatus } from './errorParser';

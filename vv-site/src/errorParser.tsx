@@ -1,5 +1,3 @@
-// errorParser.ts
-
 export function getResultReason(run: any, type: 'compiler' | 'runtime'): string {
   const section = type === 'compiler' ? run?.compilation : run?.runtime;
   if (!section) return 'N/A';
