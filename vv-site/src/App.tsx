@@ -89,6 +89,7 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [graphGenerated, setGraphGenerated] = useState(false);
   const [graphMode, setGraphMode] = useState<'compiler' | 'runtime'>('compiler');
+  const [comparisonLabels, setComparisonLabels] = useState<string[]>(['Version 1', 'Version 2']);
   const navigate = useNavigate();
 
 useEffect(() => {
@@ -141,6 +142,11 @@ useEffect(() => {
   if (comparisonFiles.length !== 2 || !comparisonFiles[0] || !comparisonFiles[1]) return;
 
   const summaries: any[] = [];
+
+  setComparisonLabels([
+    comparisonFiles[0]?.name || 'Version 1',
+    comparisonFiles[1]?.name || 'Version 2',
+  ]);
 
   const processFile = (file: File, index: number) => {
     const reader = new FileReader();
@@ -362,8 +368,8 @@ useEffect(() => {
                 <YAxis allowDecimals={false} />
                 <Tooltip />
                 <Legend />
-                <Bar dataKey="version1" fill="#3b82f6" name="Version 1" />
-                <Bar dataKey="version2" fill="#10b981" name="Version 2" />
+                <Bar dataKey="version1" fill="#3b82f6" name={comparisonLabels[0]} />
+                <Bar dataKey="version2" fill="#10b981" name={comparisonLabels[1]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
