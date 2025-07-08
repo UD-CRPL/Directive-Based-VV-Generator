@@ -218,7 +218,7 @@ useEffect(() => {
       </h1>
 
       <div className={`max-w-2xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
-        <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Single Version Results</h2>
+        <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload a single JSON file to generate summary statistics and access detailed results.</p>
 
         <div className="flex flex-col items-center">
@@ -297,7 +297,7 @@ useEffect(() => {
       </div>
 
       <div className={`max-w-2xl mx-auto border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
-        <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-500 mb-2">Compare Two Versions</h2>
+        <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-500 mb-2">Compare Two Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload two JSON files to compare the number of passing tests.</p>
 
         <div className="flex gap-1 mb-4">
