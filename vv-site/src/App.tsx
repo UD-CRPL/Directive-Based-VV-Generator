@@ -213,11 +213,11 @@ useEffect(() => {
         </button>
       </div>
 
-      <h1 className="text-4xl font-extrabold text-center mb-10 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400">
-        OpenACC V&V Results Generator
+      <h1 className="text-5xl font-bold text-center mb-10 bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600 dark:from-purple-400 dark:to-blue-400">
+        Directive Based V&V Results Generator
       </h1>
 
-      <div className={`max-w-3xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+      <div className={`max-w-2xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
         <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Single Version Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload a single JSON file to generate summary statistics and access detailed results.</p>
 
@@ -296,11 +296,11 @@ useEffect(() => {
         )}
       </div>
 
-      <div className={`max-w-3xl mx-auto border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
+      <div className={`max-w-2xl mx-auto border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
         <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-500 mb-2">Compare Two Versions</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload two JSON files to compare the number of passing tests.</p>
 
-        <div className="flex gap-4 mb-4">
+        <div className="flex gap-1 mb-4">
           <input type="file" accept=".json" onChange={(e) => setComparisonFiles(prev => [e.target.files?.[0]!, prev[1]])}
             className={`flex-1 p-2 rounded ${darkMode ? 'bg-gray-800 text-white border border-green-400' : 'bg-white text-black border border-green-600'}`} />
           <input type="file" accept=".json" onChange={(e) => setComparisonFiles(prev => [prev[0], e.target.files?.[0]!])}
