@@ -155,7 +155,15 @@ useEffect(() => {
       const data = JSON.parse(rawText);
       const runs = data.runs;
 
-      const counts = { C: 0, CPP: 0, F90: 0 };
+        const counts: {
+          C: { total: number; pass: number };
+          CPP: { total: number; pass: number };
+          F90: { total: number; pass: number };
+        } = {
+          C: { total: 0, pass: 0 },
+          CPP: { total: 0, pass: 0 },
+          F90: { total: 0, pass: 0 },
+        };
 
       for (const testName of Object.keys(runs)) {
         const runArray = runs[testName];
@@ -186,8 +194,16 @@ useEffect(() => {
           if (isRuntimeFail) runtimePass = false;
         }
 
-        if (graphMode === 'compiler' && compilerPass) counts[lang]++;
-        if (graphMode === 'runtime' && compilerPass && runtimePass) counts[lang]++;
+        counts[lang].total++;
+
+        if (graphMode === 'compiler' && compilerPass) {
+          counts[lang].pass++;
+        }
+
+        if (graphMode === 'runtime' && compilerPass && runtimePass) {
+          counts[lang].pass++;
+        }
+
       }
 
       summaries[index] = counts;
@@ -195,8 +211,10 @@ useEffect(() => {
       if (summaries.filter(Boolean).length === 2) {
         const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
           language: lang,
-          version1: summaries[0][lang],
-          version2: summaries[1][lang],
+          version1: `${summaries[0][lang].pass} / ${summaries[0][lang].total}`,
+          version2: `${summaries[1][lang].pass} / ${summaries[1][lang].total}`,
+          version1Pass: summaries[0][lang].pass,
+          version2Pass: summaries[1][lang].pass,
         }));
         setComparisonData(chartData);
       }
@@ -365,11 +383,34 @@ useEffect(() => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <XAxis dataKey="language" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis
+                  allowDecimals={false}
+                  label={{
+                    value: 'Number of Passing Tests',
+                    angle: -90,
+                    position: 'insideLeft',
+                    offset: 10,
+                    style: { textAnchor: 'middle', fill: darkMode ? '#fff' : '#000' },
+                  }}
+                />
+                <Tooltip
+                  content={({ payload, label }) => {
+                    if (!payload || !payload.length) return null;
+                    const v1 = payload.find(p => p.dataKey === 'version1Pass')?.payload;
+                    const v2 = payload.find(p => p.dataKey === 'version2Pass')?.payload;
+
+                    return (
+                      <div className={`p-2 rounded border shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}>
+                        <p className="font-bold mb-1">{label}</p>
+                        <p>{comparisonLabels[0]}: {v1.version1}</p>
+                        <p>{comparisonLabels[1]}: {v2.version2}</p>
+                      </div>
+                    );
+                  }}
+                />
                 <Legend />
-                <Bar dataKey="version1" fill="#3b82f6" name={comparisonLabels[0]} />
-                <Bar dataKey="version2" fill="#10b981" name={comparisonLabels[1]} />
+                <Bar dataKey="version1Pass" fill="#3b82f6" name={comparisonLabels[0]} />
+                <Bar dataKey="version2Pass" fill="#10b981" name={comparisonLabels[1]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
