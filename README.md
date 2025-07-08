@@ -1,4 +1,4 @@
-# OpenACC-VV-Generator
-The OpenACC Validation & Verification Results Generator is a one stop shop for producing results for CRPL's OpenACC test suite runs. 
+# Directive-Based-VV-Generator
+The Directive Based Validation & Verification Results Generator is a one stop shop for producing results for test suite runs. 
 
-The results generator creates graphs, compares the different compiler versions passing and failing tests, generates organized charts that can be downloaded as an excel sheet, Produces compiler & runtime failures with reasoning, and allows for single and double json file inputs.
+The results generator takes in JSON files to create graphs, compare passing and failing tests for different compiler versions, generate organized charts that can be downloaded as an excel sheet, produce compiler & runtime failures with reasoning, and allow for single and double JSON file inputs.
