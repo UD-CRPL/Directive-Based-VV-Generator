@@ -26,7 +26,33 @@ function parseJSONResultsHelper(
 ) {
   const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
   const parsed = JSON.parse(sanitized);
-  const runs = parsed.runs ?? parsed;
+
+let runs: { [key: string]: any[] } = {};
+
+// Case 1: OpenACC format (has "runs" key)
+if (parsed.runs) {
+  runs = parsed.runs as { [key: string]: any[] };
+}
+
+// Case 2: OpenMP flat structure (keys are filenames)
+else if (!Array.isArray(parsed)) {
+  runs = Object.fromEntries(
+    Object.entries(parsed)
+      .filter(([key]) => key !== 'testsuite_configuration')
+      .map(([key, value]) => [key, Array.isArray(value) ? value : [value]])
+  ) as { [key: string]: any[] };
+}
+
+// Case 3: OpenACC "makefile-style" array with testname
+else if (Array.isArray(parsed)) {
+  for (const item of parsed) {
+    const name = item.testname || item.test || item.name;
+    if (!name) continue;
+    if (!runs[name]) runs[name] = [];
+    runs[name].push(item);
+  }
+}
+
 
   const summaryCounts: Summary = {
     C: { total: 0, pass: 0, fail: 0 },
@@ -38,22 +64,27 @@ function parseJSONResultsHelper(
   const sortedNames = sortTestNames(Object.keys(runs));
 
   for (const testName of sortedNames) {
-    const runArray = runs[testName];
-    if (!Array.isArray(runArray) || runArray.length === 0) continue;
+    const runEntry = runs[testName];
+    const runArray = Array.isArray(runEntry) ? runEntry : [runEntry];
+    if (runArray.length === 0) continue;
 
-    const ext = testName.split('.').pop()?.toLowerCase();
+    const nameLower = testName.toLowerCase();
     let lang: 'C' | 'CPP' | 'F90' | null = null;
-    if (ext === 'c') lang = 'C';
-    else if (ext === 'cpp') lang = 'CPP';
-    else if (ext === 'f90') lang = 'F90';
+    if (nameLower.endsWith('.c')) lang = 'C';
+    else if (nameLower.endsWith('.cpp')) lang = 'CPP';
+    else if (nameLower.endsWith('.f90')) lang = 'F90';
     if (!lang) continue;
 
     summaryCounts[lang].total++;
 
     const firstCompilerFail = runArray.find((run) => getCompilerStatus(run).result !== 0);
     const firstRuntimeFail = runArray.find((run) => {
-      const result = getRuntimeStatus(run).result;
-      return typeof result === 'number' ? result !== 0 : result.toLowerCase() !== 'pass';
+      const runtimeResult = getRuntimeStatus(run).result;
+      return typeof runtimeResult === 'number'
+        ? runtimeResult !== 0
+        : typeof runtimeResult === 'string'
+          ? runtimeResult.toLowerCase() !== 'pass'
+          : true;
     });
 
     if (mode === 'compiler') {
@@ -78,6 +109,7 @@ function parseJSONResultsHelper(
 
   setSummary(summaryCounts);
 }
+
 
 function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -153,7 +185,9 @@ useEffect(() => {
     reader.onload = (e) => {
       const rawText = (e.target?.result as string)?.trim().replace(/^var jsonResults\s*=\s*/, '');
       const parsed = JSON.parse(rawText);
-      const runs = parsed.runs ?? parsed;
+      const runs = parsed.runs || Object.fromEntries(
+        Object.entries(parsed).filter(([key]) => key !== 'testsuite_configuration')
+      );
 
         const counts: {
           C: { total: number; pass: number };
@@ -166,8 +200,18 @@ useEffect(() => {
         };
 
       for (const testName of Object.keys(runs)) {
-        const runArray = runs[testName];
-        if (!Array.isArray(runArray) || runArray.length === 0) continue;
+        let runArray = runs[testName];
+
+        // Support both array and object formats
+        if (!Array.isArray(runArray)) {
+          if (typeof runArray === 'object' && runArray !== null) {
+            runArray = [runArray];
+          } else {
+            continue; // Invalid structure
+          }
+        }
+
+        if (runArray.length === 0) continue;
 
         const ext = testName.split('.').pop()?.toLowerCase();
         let lang: 'C' | 'CPP' | 'F90' | null = null;
@@ -183,13 +227,12 @@ useEffect(() => {
           const cStatus = getCompilerStatus(run);
           const rStatus = getRuntimeStatus(run);
 
-          if (cStatus.result !== 0) compilerPass = false;
+          const compilerSucceeded = cStatus.result === 0 || run.compilation?.success === true;
+          if (!compilerSucceeded) compilerPass = false;
 
-          const isRuntimeFail = typeof rStatus.result === 'number'
-            ? rStatus.result !== 0
-            : typeof rStatus.result === 'string'
-              ? rStatus.result.toLowerCase() !== 'pass'
-              : false;
+          const runtimeSucceeded = rStatus.result === 0 || run.runtime?.success === true;
+          const isRuntimeFail = !runtimeSucceeded;
+          if (isRuntimeFail) runtimePass = false;
 
           if (isRuntimeFail) runtimePass = false;
         }

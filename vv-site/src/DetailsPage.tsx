@@ -129,7 +129,9 @@ useEffect(() => {
 
   const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
   const data = JSON.parse(jsonText);
-  const runs = data.runs;
+  const runs = data.runs || Object.fromEntries(
+    Object.entries(data).filter(([k]) => k !== 'testsuite_configuration')
+  );
 
   const sortTestNames = (names: string[]) => {
     const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };
@@ -145,58 +147,70 @@ useEffect(() => {
   const parsedFailures: FailureDetail[] = [];
   const sortedNames = sortTestNames(Object.keys(runs));
 
-  for (const testName of sortedNames) {
-    const runArray = runs[testName];
-    if (!Array.isArray(runArray) || runArray.length === 0) continue;
+for (const testName of sortedNames) {
+  let runArray = runs[testName];
 
-    const ext = testName.split('.').pop()?.toLowerCase();
-    let language = 'Other';
-    if (ext === 'c') language = 'C';
-    else if (ext === 'cpp') language = 'CPP';
-    else if (ext === 'f90') language = 'F90';
-
-    let compilerStatusFinal = { result: 0, reason: 'Pass', stderr: '', stdout: '' };
-    let runtimeStatusFinal: { result: number | string, reason: string, stderr: string, output: string } =
-      { result: 0, reason: 'Pass', stderr: '', output: '' };
-
-    for (const run of runArray) {
-      const cStatus = getCompilerStatus(run);
-      const rStatus = getRuntimeStatus(run);
-
-      if (cStatus.result !== 0) {
-        compilerStatusFinal.result = cStatus.result;
-        compilerStatusFinal.reason = cStatus.reason;
-        compilerStatusFinal.stderr ||= cStatus.stderr;
-        compilerStatusFinal.stdout ||= cStatus.stdout;
-      }
-
-      const isRuntimeFail = typeof rStatus.result === 'number'
-        ? rStatus.result !== 0
-        : typeof rStatus.result === 'string'
-          ? rStatus.result.toLowerCase() !== 'pass'
-          : false;
-
-      if (isRuntimeFail) {
-        runtimeStatusFinal.result = rStatus.result;
-        runtimeStatusFinal.reason = rStatus.reason;
-        runtimeStatusFinal.stderr ||= rStatus.stderr;
-        runtimeStatusFinal.output ||= rStatus.output;
-      }
+  // Convert single object to array if needed (for OpenMP and new OpenACC)
+  if (!Array.isArray(runArray)) {
+    if (typeof runArray === 'object' && runArray !== null) {
+      runArray = [runArray];
+    } else {
+      continue; // Skip invalid entries
     }
-
-    parsedFailures.push({
-      name: testName,
-      language,
-      compilerResult: compilerStatusFinal.result,
-      compilerReason: compilerStatusFinal.reason || 'Pass',
-      runtimeResult: runtimeStatusFinal.result,
-      runtimeReason: runtimeStatusFinal.reason || 'Pass',
-      compilerStderr: compilerStatusFinal.stderr,
-      compilerStdout: compilerStatusFinal.stdout,
-      runtimeStderr: runtimeStatusFinal.stderr,
-      runtimeOutput: runtimeStatusFinal.output,
-    });
   }
+
+  if (runArray.length === 0) continue;
+
+  const ext = testName.split('.').pop()?.toLowerCase();
+  let language = 'Other';
+  if (ext === 'c') language = 'C';
+  else if (ext === 'cpp') language = 'CPP';
+  else if (ext === 'f90') language = 'F90';
+
+  let compilerStatusFinal = { result: 0, reason: 'Pass', stderr: '', stdout: '' };
+  let runtimeStatusFinal: { result: number | string, reason: string, stderr: string, output: string } =
+    { result: 0, reason: 'Pass', stderr: '', output: '' };
+
+  for (const run of runArray) {
+    const cStatus = getCompilerStatus(run);
+    const rStatus = getRuntimeStatus(run);
+
+  const compilerSucceeded = cStatus.result === 0 || run.compilation?.success === true;
+  if (!compilerSucceeded) {
+    compilerStatusFinal = {
+      result: cStatus.result,
+      reason: cStatus.reason,
+      stderr: cStatus.stderr,
+      stdout: cStatus.stdout
+    };
+  }
+
+    const runtimeSucceeded = rStatus.result === 0 || run.runtime?.success === true;
+    if (!runtimeSucceeded) {
+      runtimeStatusFinal = {
+        result: rStatus.result,
+        reason: rStatus.reason,
+        stderr: rStatus.stderr,
+        output: rStatus.output
+      };
+    }
+  }
+
+  parsedFailures.push({
+    name: testName,
+    language,
+    compilerResult: compilerStatusFinal.result,
+    compilerReason: compilerStatusFinal.reason || 'Pass',
+    runtimeResult: runtimeStatusFinal.result,
+    runtimeReason: runtimeStatusFinal.reason || 'Pass',
+    compilerStderr: compilerStatusFinal.stderr,
+    compilerStdout: compilerStatusFinal.stdout,
+    runtimeStderr: runtimeStatusFinal.stderr,
+    runtimeOutput: runtimeStatusFinal.output
+  });
+}
+
+setFailures(parsedFailures);
 
   setFailures(parsedFailures);
 }, [location.state]);
