@@ -248,6 +248,31 @@ useEffect(() => {
         Directive Based V&V Results Generator
       </h1>
 
+      <div className={`max-w-3xl mx-auto mt-4 mb-8 p-4 rounded-lg shadow-md border 
+        ${darkMode 
+          ? 'bg-gray-900 text-gray-200 border-gray-700' 
+          : 'bg-white text-gray-800 border-gray-200'}`}>
+        <h2 className="text-xl font-semi-bold mb-2 text-indigo-600 dark:text-indigo-300">
+          How to Use This Site
+        </h2>
+        <p className="text-sm leading-relaxed">
+          Upload a single JSON test results file to generate a visual summary of passing/failing tests.
+          Use the toggle to switch between compiler and runtime validation modes. You can also upload
+          two files to compare versions side-by-side, generating a graph for better visualization. Hover over sections 
+          in the graph to view passing/total.
+        </p>
+        <p className="text-sm leading-relaxed font-semi-bold mt-2">
+          Click "View Details" in the "Upload Results" section to explore individual test results in more detail, including: pass/fail, reasons, outputs, and downloadable Excel reports.
+        </p>
+      </div>
+
+      <div
+        className={`rounded-2xl border shadow-xl p-6 mb-12 max-w-6xl mx-auto
+          ${darkMode
+            ? 'bg-gradient-to-br from-violet-600 via-blue-400 to-blue-200 border-gray-700'
+            : 'bg-gradient-to-br from-violet-700 via-violet-400 to-blue-400 border-gray-200'
+          }`}
+      >
       <div className={`max-w-2xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
         <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload a single JSON file to generate summary statistics and access detailed results.</p>
@@ -423,6 +448,7 @@ useEffect(() => {
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }
