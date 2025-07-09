@@ -25,8 +25,8 @@ function parseJSONResultsHelper(
   sortTestNames: (testNames: string[]) => string[]
 ) {
   const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
-  const data = JSON.parse(sanitized);
-  const runs = data.runs;
+  const parsed = JSON.parse(sanitized);
+  const runs = parsed.runs ?? parsed;
 
   const summaryCounts: Summary = {
     C: { total: 0, pass: 0, fail: 0 },
@@ -89,6 +89,7 @@ function HomePage({ darkMode, setDarkMode }: HomePageProps) {
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [graphGenerated, setGraphGenerated] = useState(false);
   const [graphMode, setGraphMode] = useState<'compiler' | 'runtime'>('compiler');
+  const [comparisonLabels, setComparisonLabels] = useState<string[]>(['Version 1', 'Version 2']);
   const navigate = useNavigate();
 
 useEffect(() => {
@@ -142,14 +143,27 @@ useEffect(() => {
 
   const summaries: any[] = [];
 
+  setComparisonLabels([
+    comparisonFiles[0]?.name || 'Version 1',
+    comparisonFiles[1]?.name || 'Version 2',
+  ]);
+
   const processFile = (file: File, index: number) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const rawText = (e.target?.result as string)?.trim().replace(/^var jsonResults\s*=\s*/, '');
-      const data = JSON.parse(rawText);
-      const runs = data.runs;
+      const parsed = JSON.parse(rawText);
+      const runs = parsed.runs ?? parsed;
 
-      const counts = { C: 0, CPP: 0, F90: 0 };
+        const counts: {
+          C: { total: number; pass: number };
+          CPP: { total: number; pass: number };
+          F90: { total: number; pass: number };
+        } = {
+          C: { total: 0, pass: 0 },
+          CPP: { total: 0, pass: 0 },
+          F90: { total: 0, pass: 0 },
+        };
 
       for (const testName of Object.keys(runs)) {
         const runArray = runs[testName];
@@ -180,8 +194,16 @@ useEffect(() => {
           if (isRuntimeFail) runtimePass = false;
         }
 
-        if (graphMode === 'compiler' && compilerPass) counts[lang]++;
-        if (graphMode === 'runtime' && compilerPass && runtimePass) counts[lang]++;
+        counts[lang].total++;
+
+        if (graphMode === 'compiler' && compilerPass) {
+          counts[lang].pass++;
+        }
+
+        if (graphMode === 'runtime' && compilerPass && runtimePass) {
+          counts[lang].pass++;
+        }
+
       }
 
       summaries[index] = counts;
@@ -189,8 +211,10 @@ useEffect(() => {
       if (summaries.filter(Boolean).length === 2) {
         const chartData = ['C', 'CPP', 'F90'].map((lang) => ({
           language: lang,
-          version1: summaries[0][lang],
-          version2: summaries[1][lang],
+          version1: `${summaries[0][lang].pass} / ${summaries[0][lang].total}`,
+          version2: `${summaries[1][lang].pass} / ${summaries[1][lang].total}`,
+          version1Pass: summaries[0][lang].pass,
+          version2Pass: summaries[1][lang].pass,
         }));
         setComparisonData(chartData);
       }
@@ -203,11 +227,18 @@ useEffect(() => {
 }
  
   return (
-    <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
+    <div className={`relative ${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
+        <div
+          className={`w-full h-20 shadow-lg absolute top-0 left-0 z-0 pointer-events-none
+            ${darkMode
+              ? 'bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700'
+              : 'bg-gradient-to-r from-neutral-100 via-white to-neutral-100 border-b border-gray-200'}
+          `}
+        ></div>
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setDarkMode(prev => !prev)}
-          className="px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-600"
+          className="relative z-10 flex justify-end mb-6 px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-700"
         >
           Toggle {darkMode ? 'Light' : 'Dark'} Mode
         </button>
@@ -218,7 +249,7 @@ useEffect(() => {
       </h1>
 
       <div className={`max-w-2xl mx-auto mb-12 border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
-        <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Single Version Results</h2>
+        <h2 className="text-2xl font-bold text-center text-blue-700 dark:text-blue-300 mb-2">Upload Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload a single JSON file to generate summary statistics and access detailed results.</p>
 
         <div className="flex flex-col items-center">
@@ -297,7 +328,7 @@ useEffect(() => {
       </div>
 
       <div className={`max-w-2xl mx-auto border rounded-lg shadow-xl p-6 ${darkMode ? 'bg-gray-900 text-white' : 'bg-white text-black'}`}>
-        <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-500 mb-2">Compare Two Versions</h2>
+        <h2 className="text-2xl font-bold text-center text-green-700 dark:text-green-500 mb-2">Compare Two Results</h2>
         <p className="text-center text-sm mb-4 text-gray-700 dark:text-gray-400">Upload two JSON files to compare the number of passing tests.</p>
 
         <div className="flex gap-1 mb-4">
@@ -309,8 +340,8 @@ useEffect(() => {
 
         {comparisonFiles.filter(Boolean).length === 2 && (
           <div className="text-center mb-4">
-            <p className="text-green-600 dark:text-green-300 text-sm mb-2">✅ Both files ready:</p>
-            <ul className="text-sm list-disc text-left pl-5 text-gray-800 dark:text-gray-200">
+            <p className="text-green-600 dark:text-green-400 text-sm mb-2">✅ Both files ready:</p>
+            <ul className="text-sm list-disc text-left pl-5 text-gray-800 dark:text-gray-500">
               {comparisonFiles.map((file, i) => (
                 file && <li key={i}>{file.name}</li>
               ))}
@@ -359,11 +390,34 @@ useEffect(() => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={comparisonData} margin={{ top: 10, right: 30, left: 0, bottom: 5 }}>
                 <XAxis dataKey="language" />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis
+                  allowDecimals={false}
+                  label={{
+                    value: 'Number of Passing Tests',
+                    angle: -90,
+                    position: 'insideLeft',
+                    offset: 10,
+                    style: { textAnchor: 'middle', fill: darkMode ? '#fff' : '#000' },
+                  }}
+                />
+                <Tooltip
+                  content={({ payload, label }) => {
+                    if (!payload || !payload.length) return null;
+                    const v1 = payload.find(p => p.dataKey === 'version1Pass')?.payload;
+                    const v2 = payload.find(p => p.dataKey === 'version2Pass')?.payload;
+
+                    return (
+                      <div className={`p-2 rounded border shadow-md ${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-black'}`}>
+                        <p className="font-bold mb-1">{label}</p>
+                        <p>{comparisonLabels[0]}: {v1.version1}</p>
+                        <p>{comparisonLabels[1]}: {v2.version2}</p>
+                      </div>
+                    );
+                  }}
+                />
                 <Legend />
-                <Bar dataKey="version1" fill="#3b82f6" name="Version 1" />
-                <Bar dataKey="version2" fill="#10b981" name="Version 2" />
+                <Bar dataKey="version1Pass" fill="#3b82f6" name={comparisonLabels[0]} />
+                <Bar dataKey="version2Pass" fill="#10b981" name={comparisonLabels[1]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
