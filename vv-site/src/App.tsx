@@ -25,8 +25,8 @@ function parseJSONResultsHelper(
   sortTestNames: (testNames: string[]) => string[]
 ) {
   const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
-  const data = JSON.parse(sanitized);
-  const runs = data.runs;
+  const parsed = JSON.parse(sanitized);
+  const runs = parsed.runs ?? parsed;
 
   const summaryCounts: Summary = {
     C: { total: 0, pass: 0, fail: 0 },
@@ -152,8 +152,8 @@ useEffect(() => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const rawText = (e.target?.result as string)?.trim().replace(/^var jsonResults\s*=\s*/, '');
-      const data = JSON.parse(rawText);
-      const runs = data.runs;
+      const parsed = JSON.parse(rawText);
+      const runs = parsed.runs ?? parsed;
 
         const counts: {
           C: { total: number; pass: number };
