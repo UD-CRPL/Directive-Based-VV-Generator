@@ -227,11 +227,19 @@ useEffect(() => {
 }
  
   return (
-    <div className={`${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
+    <div className={`relative ${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
+        <div
+  className={`w-full h-20 shadow-lg absolute top-0 left-0 z-0 pointer-events-none
+    ${darkMode
+      ? 'bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700'
+      : 'bg-gradient-to-r from-neutral-100 via-white to-neutral-100 border-b border-gray-200'}
+  `}
+></div>
+
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setDarkMode(prev => !prev)}
-          className="px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-600"
+          className="relative z-10 flex justify-end mb-6 px-4 py-2 bg-indigo-500 text-white rounded shadow hover:bg-indigo-700"
         >
           Toggle {darkMode ? 'Light' : 'Dark'} Mode
         </button>
