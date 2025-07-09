@@ -27,7 +27,10 @@ export function getCompilerStatus(run: any): {
   stdout: string;
 } {
   const section = run.compilation || {};
-  const result = section.result ?? -1;
+  let result = section.result;
+  if (typeof result !== 'number') {
+    result = section.success === true ? 0 : 1;
+  }
   const reason = result === 0 ? 'Pass' : getResultReason(run, 'compiler');
 
   return {
@@ -45,7 +48,10 @@ export function getRuntimeStatus(run: any): {
   output: string;
 } {
   const section = run.runtime || run.execution || {};
-  const result = section.result;
+  let result = section.result;
+  if (typeof result !== 'number') {
+    result = section.success === true ? 0 : 1;
+  }
   const isNumber = typeof result === 'number';
 
   const stderr = section.errors || section.stderr || '';
