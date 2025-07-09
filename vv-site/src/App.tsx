@@ -229,13 +229,12 @@ useEffect(() => {
   return (
     <div className={`relative ${darkMode ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-black text-white' : 'bg-gradient-to-br from-gray-100 via-white to-gray-200 text-black'} min-h-screen p-8`}>
         <div
-  className={`w-full h-20 shadow-lg absolute top-0 left-0 z-0 pointer-events-none
-    ${darkMode
-      ? 'bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700'
-      : 'bg-gradient-to-r from-neutral-100 via-white to-neutral-100 border-b border-gray-200'}
-  `}
-></div>
-
+          className={`w-full h-20 shadow-lg absolute top-0 left-0 z-0 pointer-events-none
+            ${darkMode
+              ? 'bg-gradient-to-r from-gray-800 via-gray-900 to-gray-800 border-b border-gray-700'
+              : 'bg-gradient-to-r from-neutral-100 via-white to-neutral-100 border-b border-gray-200'}
+          `}
+        ></div>
       <div className="flex justify-end mb-6">
         <button
           onClick={() => setDarkMode(prev => !prev)}
@@ -341,8 +340,8 @@ useEffect(() => {
 
         {comparisonFiles.filter(Boolean).length === 2 && (
           <div className="text-center mb-4">
-            <p className="text-green-600 dark:text-green-300 text-sm mb-2">✅ Both files ready:</p>
-            <ul className="text-sm list-disc text-left pl-5 text-gray-800 dark:text-gray-200">
+            <p className="text-green-600 dark:text-green-400 text-sm mb-2">✅ Both files ready:</p>
+            <ul className="text-sm list-disc text-left pl-5 text-gray-800 dark:text-gray-500">
               {comparisonFiles.map((file, i) => (
                 file && <li key={i}>{file.name}</li>
               ))}
