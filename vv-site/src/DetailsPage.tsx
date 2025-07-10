@@ -173,26 +173,36 @@ for (const testName of sortedNames) {
 
   for (const run of runArray) {
     const cStatus = getCompilerStatus(run);
-    const rStatus = getRuntimeStatus(run);
+    const compilerSucceeded = cStatus.result === 0 || run.compilation?.success === true;
 
-  const compilerSucceeded = cStatus.result === 0 || run.compilation?.success === true;
-  if (!compilerSucceeded) {
-    compilerStatusFinal = {
-      result: cStatus.result,
-      reason: cStatus.reason,
-      stderr: cStatus.stderr,
-      stdout: cStatus.stdout
-    };
-  }
-
-    const runtimeSucceeded = rStatus.result === 0 || run.runtime?.success === true;
-    if (!runtimeSucceeded) {
-      runtimeStatusFinal = {
-        result: rStatus.result,
-        reason: rStatus.reason,
-        stderr: rStatus.stderr,
-        output: rStatus.output
+    if (!compilerSucceeded) {
+      compilerStatusFinal = {
+        result: cStatus.result,
+        reason: cStatus.reason,
+        stderr: cStatus.stderr,
+        stdout: cStatus.stdout
       };
+
+      // Runtime shouldn't be evaluated if compiler failed
+      runtimeStatusFinal = {
+        result: 'Unknown',
+        reason: 'Not executed due to compiler failure',
+        stderr: '',
+        output: ''
+      };
+    } else {
+      // Only evaluate runtime if compiler succeeded
+      const rStatus = getRuntimeStatus(run);
+      const runtimeSucceeded = rStatus.result === 0 || run.runtime?.success === true;
+
+      if (!runtimeSucceeded) {
+        runtimeStatusFinal = {
+          result: rStatus.result,
+          reason: rStatus.reason,
+          stderr: rStatus.stderr,
+          output: rStatus.output
+        };
+      }
     }
   }
 
