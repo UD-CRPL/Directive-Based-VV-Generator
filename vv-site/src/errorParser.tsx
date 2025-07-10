@@ -27,27 +27,16 @@ export function getCompilerStatus(run: any): {
   stdout: string;
 } {
   const section = run.compilation || {};
+  let result = section.result;
 
-  // Support `result`, `return_code`, or fallback to `success`
-  let resultRaw = section.result ?? section.return_code;
-  let result: number;
-
-  if (typeof resultRaw === 'number') {
-    result = resultRaw;
-  } else if (typeof resultRaw === 'string' && !isNaN(Number(resultRaw))) {
-    result = Number(resultRaw);
-  } else if ('success' in section) {
-    result = section.success === true ? 0 : 1;
-  } else {
-    result = -1; // fallback if everything is missing
+  // Add fallback to return_code
+  if (typeof result !== 'number') {
+    result = typeof section.return_code === 'number'
+      ? section.return_code
+      : section.success === true ? 0 : 1;
   }
 
-  const reason =
-    result === 0
-      ? 'Pass'
-      : result === -1
-        ? 'No compilation result'
-        : getResultReason(run, 'compiler');
+  const reason = result === 0 ? 'Pass' : getResultReason(run, 'compiler');
 
   return {
     result,
@@ -64,37 +53,30 @@ export function getRuntimeStatus(run: any): {
   output: string;
 } {
   const section = run.runtime || run.execution || {};
+  let result = section.result;
 
-  // Correctly pull result from either `result` or `return_code`
-  let resultRaw = section.result ?? section.return_code;
-  let result: number | string;
-
-  if (typeof resultRaw === 'number') {
-    result = resultRaw;
-  } else if (typeof resultRaw === 'string' && !isNaN(Number(resultRaw))) {
-    result = Number(resultRaw);
-  } else if ('success' in section) {
-    result = section.success === true ? 0 : 1;
-  } else {
-    result = 'Unknown';
+  // Add fallback to return_code
+  if (typeof result !== 'number') {
+    result = typeof section.return_code === 'number'
+      ? section.return_code
+      : section.success === true ? 0 : 1;
   }
+
+  const isNumber = typeof result === 'number';
 
   const stderr = section.errors || section.stderr || '';
   const output = section.output || '';
 
-  const reason =
-    result === 0
-      ? 'Pass'
-      : result === 'Unknown'
-        ? 'No execution result'
-        : getResultReason(run, 'runtime');
+  const reason = !isNumber
+    ? 'No execution result'
+    : result !== 0 || stderr.trim() || output.trim()
+    ? getResultReason(run, 'runtime')
+    : 'Pass';
 
   return {
-    result,
+    result: isNumber ? result : 'Unknown',
     reason,
     stderr,
-    output,
+    output
   };
 }
-
-
