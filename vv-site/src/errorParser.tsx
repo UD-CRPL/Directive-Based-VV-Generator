@@ -1,13 +1,14 @@
 export function getResultReason(run: any, type: 'compiler' | 'runtime'): string {
-  const section = type === 'compiler' ? run?.compilation : run?.runtime;
+  const section = type === 'compiler'
+    ? run?.compilation
+    : run?.runtime || run?.execution || run;
+
   if (!section) return 'N/A';
 
-  const stderr = section.errors?.trim() || section.stderr?.trim() || '';
-  const stdout = section.stdout?.trim() || '';
-  const output = section.output?.trim() || '';
-  const msg = `${stderr}
-${stdout}
-${output}`.trim();
+  const stderr = section.errors?.trim?.() || section.stderr?.trim?.() || '';
+  const stdout = section.stdout?.trim?.() || '';
+  const output = section.output?.trim?.() || '';
+  const msg = `${stderr}\n${stdout}\n${output}`.trim();
 
   if (!msg) return 'Unknown';
 
@@ -26,10 +27,10 @@ export function getCompilerStatus(run: any): {
   stderr: string;
   stdout: string;
 } {
-  const section = run.compilation || {};
+  const section = run.compilation || run || {};
   let result = section.result;
 
-  // Add fallback to return_code
+  // Fallback to return_code or success
   if (typeof result !== 'number') {
     result = typeof section.return_code === 'number'
       ? section.return_code
@@ -52,10 +53,10 @@ export function getRuntimeStatus(run: any): {
   stderr: string;
   output: string;
 } {
-  const section = run.runtime || run.execution || {};
+  const section = run.runtime || run.execution || run || {};
   let result = section.result;
 
-  // Add fallback to return_code
+  // Fallback to return_code or success
   if (typeof result !== 'number') {
     result = typeof section.return_code === 'number'
       ? section.return_code

@@ -129,9 +129,37 @@ useEffect(() => {
 
   const jsonText = state.rawJson.trim().replace(/^var jsonResults\s*=\s*/, '');
   const data = JSON.parse(jsonText);
-  const runs = data.runs || Object.fromEntries(
-    Object.entries(data).filter(([k]) => k !== 'testsuite_configuration')
+  // const runs = data.runs || Object.fromEntries(
+  //   Object.entries(data).filter(([k]) => k !== 'testsuite_configuration')
+  // );
+
+  let runs: { [key: string]: any[] } = {};
+
+if (data.runs) {
+  // Case 1: OpenACC format
+  runs = data.runs;
+} else if (data.results && typeof data.results === 'object') {
+  // Case 2: NVIDIA-style JSON (your fake file)
+  runs = Object.fromEntries(
+    Object.entries(data.results).map(([key, val]) => [key, Array.isArray(val) ? val : [val]])
   );
+} else if (!Array.isArray(data)) {
+  // Case 3: OpenMP flat JSON structure (test names as top-level keys)
+  runs = Object.fromEntries(
+    Object.entries(data)
+      .filter(([key]) => key !== 'testsuite_configuration' && typeof data[key] === 'object')
+      .map(([key, value]) => [key, Array.isArray(value) ? value : [value]])
+  );
+} else {
+  // Case 4: Flat array with testname/test/name inside each object
+  for (const item of data) {
+    const name = item.testname || item.test || item.name;
+    if (!name) continue;
+    if (!runs[name]) runs[name] = [];
+    runs[name].push(item);
+  }
+}
+
 
   const sortTestNames = (names: string[]) => {
     const langOrder: { [key: string]: number } = { c: 0, cpp: 1, f90: 2 };

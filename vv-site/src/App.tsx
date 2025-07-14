@@ -27,33 +27,43 @@ function parseJSONResultsHelper(
   const sanitized = fileText.trim().replace(/^var jsonResults\s*=\s*/, '');
   const parsed = JSON.parse(sanitized);
 
-let runs: { [key: string]: any[] } = {};
+  let runs: { [key: string]: any[] } = {};
 
-// Case 1: OpenACC format (has "runs" key)
-if (parsed.runs) {
-  runs = parsed.runs as { [key: string]: any[] };
-}
-
-// Case 2: OpenMP flat structure (keys are filenames)
-else if (!Array.isArray(parsed)) {
-  runs = Object.fromEntries(
-    Object.entries(parsed)
-      .filter(([key]) => key !== 'testsuite_configuration')
-      .map(([key, value]) => [key, Array.isArray(value) ? value : [value]])
-  ) as { [key: string]: any[] };
-}
-
-// Case 3: OpenACC "makefile-style" array with testname
-else if (Array.isArray(parsed)) {
-  for (const item of parsed) {
-    const name = item.testname || item.test || item.name;
-    if (!name) continue;
-    if (!runs[name]) runs[name] = [];
-    runs[name].push(item);
+  // === Case 1: OpenACC format (has "runs" key) ===
+  if (parsed.runs) {
+    runs = parsed.runs as { [key: string]: any[] };
   }
-}
 
+  // === Case 2: (has "results" key) ===
+  else if (parsed.results && typeof parsed.results === 'object') {
+    runs = Object.fromEntries(
+      Object.entries(parsed.results).map(([key, value]) => [
+        key,
+        Array.isArray(value) ? value : [value]
+      ])
+    );
+  }
 
+  // === Case 3: OpenMP flat structure (keys are filenames) ===
+  else if (!Array.isArray(parsed)) {
+    runs = Object.fromEntries(
+      Object.entries(parsed)
+        .filter(([key]) => key !== 'testsuite_configuration' && typeof parsed[key] === 'object')
+        .map(([key, value]) => [key, Array.isArray(value) ? value : [value]])
+    );
+  }
+
+  // === Case 4: Flat array of objects (with testname/test/name) ===
+  else if (Array.isArray(parsed)) {
+    for (const item of parsed) {
+      const name = item.testname || item.test || item.name;
+      if (!name) continue;
+      if (!runs[name]) runs[name] = [];
+      runs[name].push(item);
+    }
+  }
+
+  // === Summary initialization ===
   const summaryCounts: Summary = {
     C: { total: 0, pass: 0, fail: 0 },
     CPP: { total: 0, pass: 0, fail: 0 },
@@ -109,6 +119,7 @@ else if (Array.isArray(parsed)) {
 
   setSummary(summaryCounts);
 }
+
 
 
 function HomePage({ darkMode, setDarkMode }: HomePageProps) {
